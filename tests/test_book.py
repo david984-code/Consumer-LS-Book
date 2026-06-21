@@ -58,13 +58,13 @@ def test_single_name_relaxes_to_full_gross():
     assert abs(r["UBER"] - 1.0) < 1e-6  # one view -> caps can't bind, stays 100%
 
 
-def test_spy_hedge_zeroes_net_beta():
-    # Long a high-beta name, short a low-beta one -> net long beta -> hedge < 0.
+def test_hedge_weight_zeroes_sleeve_beta():
+    # A net-long-beta sleeve -> short the hedge ETF to offset it.
     w = pd.Series({"hi": 0.5, "lo": -0.5})
     b = pd.Series({"hi": 1.6, "lo": 0.8})
-    hedge = book._spy_hedge(w, b)
-    assert hedge < 0  # short SPY to offset the net-long beta
-    assert abs((w * b).sum() + hedge) < 1e-9  # net beta + hedge == 0
+    hedge = book._hedge_weight(w, b)
+    assert hedge < 0  # short the hedge ETF to offset the net-long beta
+    assert abs((w * b).sum() + hedge) < 1e-9  # sleeve beta + hedge == 0
 
 
 def test_ls_spread_is_dollar_neutral_and_directional():

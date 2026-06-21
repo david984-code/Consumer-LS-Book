@@ -22,7 +22,7 @@ import pandas as pd
 import config
 
 from . import macro
-from .data.prices import betas
+from .data.prices import hedge_betas
 from .signals import current_signals
 from .valuation import cached_scores
 
@@ -52,8 +52,8 @@ def demand_radar(force: bool = False) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("conviction", ascending=False).reset_index(drop=True)
 
 
-def _spy_hedge(weight: pd.Series, beta: pd.Series) -> float:
-    """SPY weight that zeroes the book's net beta (SPY beta = 1)."""
+def _hedge_weight(weight: pd.Series, beta: pd.Series) -> float:
+    """Hedge-ETF weight that zeroes a sleeve's net beta vs that ETF (ETF beta = 1)."""
     return round(-float((weight * beta).sum()), 3)
 
 
@@ -107,12 +107,13 @@ def positions(force: bool = False) -> pd.DataFrame:
     radar = demand_radar(force=force)
     demand = dict(zip(radar["name"], radar["conviction"], strict=True))
     value = cached_scores(force=force)
-    b = betas(force=force)
+    b = hedge_betas(force=force)
     rows = []
     for name, thesis in config.THESES.items():
         if not thesis:
             continue
         d, v = float(demand.get(name, 0.0)), float(value.get(name, 0.0))
+        subsector = config.UNIVERSE[name][0]
         rows.append(
             {
                 "name": name,
@@ -121,12 +122,13 @@ def positions(force: bool = False) -> pd.DataFrame:
                 "value": round(v, 2),
                 "sized": round(_resize(thesis, d, v), 2),
                 "beta": round(b.get(name, 1.0), 2),
+                "subsector": subsector,
+                "hedge": config.hedge_etf(subsector),
             }
         )
     df = pd.DataFrame(rows)
     if df.empty:
         return df
-    df["subsector"] = [config.UNIVERSE[n][0] for n in df["name"]]
     capped = _apply_caps(
         pd.Series(df["sized"].to_numpy(), index=df["name"]),
         pd.Series(df["subsector"].to_numpy(), index=df["name"]),
@@ -142,8 +144,10 @@ def build(force: bool = False) -> dict:
     pos = positions(force=force)
     book: dict = {"as_of": radar["as_of"].max()}
     if not pos.empty:
-        spy = _spy_hedge(pos["weight"], pos["beta"])
-        net_beta = float((pos["weight"] * pos["beta"]).sum())
+        # hedge each sleeve against its own equal-weight ETF (RSPD/RSPS)
+        hedges = {}
+        for etf, sleeve in pos.groupby("hedge"):
+            hedges[str(etf)] = round(_hedge_weight(sleeve["weight"], sleeve["beta"]) * 100, 1)
         sub_exp = pos.groupby("subsector")["weight"].apply(lambda s: float(s.abs().sum()))
         relaxed = bool(
             pos["weight"].abs().max() > config.MAX_NAME + 1e-3
@@ -152,8 +156,7 @@ def build(force: bool = False) -> dict:
         book.update(
             gross_pct=round(float(pos["weight"].abs().sum()) * 100, 0),
             net_dollar_pct=round(float(pos["weight"].sum()) * 100, 1),
-            spy_hedge_pct=round(spy * 100, 1),
-            net_beta_after_hedge=round(net_beta + spy, 2),
+            hedges_pct=hedges,  # {etf: short weight % that zeroes that sleeve's beta}
             max_position_pct=round(float(pos["weight"].abs().max()) * 100, 1),
             subsector_exposure={k: round(v * 100, 1) for k, v in sub_exp.items()},
             caps_relaxed=relaxed,
@@ -178,33 +181,33 @@ def _print(radar: pd.DataFrame, pos: pd.DataFrame, book: dict) -> None:
             f"  {r['name']:5}{r['subsector']:11}{r['demand_z']:>9.2f}"
             f"{r['trust']:>7.2f}{r['conviction']:>12.2f}"
         )
-    print("\n2) THE BOOK  (your THESES, sized by demand + value, beta-neutral)")
-    print("=" * 68)
+    print("\n2) THE BOOK  (your THESES, sized by demand + value, sector-hedged)")
+    print("=" * 74)
     if pos.empty:
         print("  No views set. Add your fundamental views in config.THESES.")
         return
-    print(f"  {'name':5}{'thesis':>8}{'demand':>8}{'value':>8}{'sized':>8}{'beta':>6}{'weight':>9}")
+    print(
+        f"  {'name':5}{'thesis':>8}{'demand':>8}{'value':>8}{'sized':>8}"
+        f"{'beta':>6}{'hedge':>7}{'weight':>9}"
+    )
     for _, r in pos.iterrows():
         print(
             f"  {r['name']:5}{r['thesis']:>+8.1f}{r['demand']:>+8.2f}{r['value']:>+8.2f}"
-            f"{r['sized']:>+8.2f}{r['beta']:>6.2f}{r['weight']:>+9.1%}"
+            f"{r['sized']:>+8.2f}{r['beta']:>6.2f}{r['hedge']:>7}{r['weight']:>+9.1%}"
         )
-    print("-" * 68)
-    print(
-        f"    + SPY hedge {book['spy_hedge_pct']:+.0f}% -> "
-        f"net beta {book['net_beta_after_hedge']:+.2f}"
-    )
+    print("-" * 74)
+    hedge_str = ", ".join(f"{etf} {w:+.0f}%" for etf, w in book["hedges_pct"].items())
+    print(f"    + SECTOR HEDGE: {hedge_str}  (each zeroes its sleeve's beta vs that ETF)")
     print(
         f"  RISK: gross {book['gross_pct']:.0f}%, net-$ {book['net_dollar_pct']:+.0f}%, "
-        f"net-beta {book['net_beta_after_hedge']:+.2f}, max {book['max_position_pct']:.0f}% "
-        f"(cap {config.MAX_NAME:.0%})"
+        f"max {book['max_position_pct']:.0f}% (cap {config.MAX_NAME:.0%})"
     )
     exp = ", ".join(f"{k} {v:.0f}%" for k, v in book["subsector_exposure"].items())
     print(f"  SUBSECTOR (cap {config.MAX_SUBSECTOR:.0%}): {exp}")
     if book["caps_relaxed"]:
         print("  * caps relaxed -- too few views to diversify; add more theses to bind them.")
-    print("  Your thesis sets direction; demand + valuation only resize it (never")
-    print("  flip). UBER stays long: soft demand trims, but it's cheap -> value adds.")
+    print("  Longs you believe in, each hedged vs the EQUAL-WEIGHT consumer sector")
+    print("  (no Amazon distortion). The bet: your picks beat the average consumer name.")
 
 
 if __name__ == "__main__":

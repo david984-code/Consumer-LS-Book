@@ -24,13 +24,28 @@ def _download(tickers: list[str]) -> pd.DataFrame:
 
 
 def fetch(force: bool = False) -> pd.DataFrame:
-    """Daily adjusted close for the universe + SPY (last 3 years)."""
+    """Daily adjusted close for the universe + SPY + hedge ETFs (last 5 years)."""
     if not force and cache.is_fresh(_NAME):
         return cache.load(_NAME)
-    tickers = [*config.UNIVERSE, "SPY"]
+    tickers = list(dict.fromkeys([*config.UNIVERSE, "SPY", *config.HEDGE_TICKERS]))
     close = _download(tickers)
     cache.save(_NAME, close)
     return close
+
+
+def hedge_betas(force: bool = False) -> dict[str, float]:
+    """Each name's beta vs the equal-weight consumer ETF it's hedged against
+    (staples -> RSPS, the rest -> RSPD), so the hedge strips out sector beta."""
+    rets = fetch(force=force).pct_change().dropna()
+    out = {}
+    for name, (subsector, *_rest) in config.UNIVERSE.items():
+        etf = config.hedge_etf(subsector)
+        if name in rets and etf in rets:
+            bench = rets[etf].to_numpy()
+            var = float(bench.var())
+            cov = float(np.cov(rets[name].to_numpy(), bench)[0, 1])
+            out[name] = round(cov / var, 2) if var else 1.0
+    return out
 
 
 def betas(force: bool = False) -> dict[str, float]:
