@@ -9,6 +9,8 @@ informational -- it NEVER sends orders. Run before each rebalance for fresh pric
 
 from __future__ import annotations
 
+import config
+
 from .book import _hedge_weight, positions
 from .data.prices import fetch as fetch_prices
 
@@ -39,8 +41,9 @@ def order_ticket(gross: float = 100_000.0, force: bool = False) -> None:
 
     longs = float(pos[pos["weight"] > 0]["weight"].sum()) * gross
     shorts = float(pos[pos["weight"] < 0]["weight"].abs().sum()) * gross
-    print(f"\n  single-name: ${longs:,.0f} long / ${shorts:,.0f} short, + sector-hedge")
-    print("  shorts (RSPD/RSPS) on top. Net market + sector exposure ~ 0. paperMoney only.")
+    hedge_names = "/".join(config.HEDGE_TICKERS)
+    print(f"\n  single-name: ${longs:,.0f} long / ${shorts:,.0f} short, + the {hedge_names}")
+    print("  hedge short on top. Net beta ~ 0 (market-hedged). paperMoney only.")
 
 
 if __name__ == "__main__":

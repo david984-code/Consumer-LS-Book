@@ -92,14 +92,14 @@ THESES: dict[str, float] = {
 MAX_NAME = 0.10
 MAX_SUBSECTOR = 0.30
 
-# Hedge: short an EQUAL-WEIGHT consumer index per sleeve, so there's no cap-weight
-# mega-cap distortion (cap-weighted XLY is ~22% Amazon -- shorting it would make you
-# hugely short Amazon, not hedge your picks). Staples sleeves hedge with RSPS, the
-# rest with RSPD. Each name's beta is measured vs ITS hedge, so the book's bet is
-# purely "my picks beat the average consumer name," market + sector stripped out.
-HEDGE_DEFAULT = "RSPD"  # Invesco S&P 500 Equal-Weight Consumer Discretionary
-HEDGE_BY_SUBSECTOR = {"bev-growth": "RSPS", "bev-staples": "RSPS"}
-HEDGE_TICKERS = ("RSPD", "RSPS")
+# Hedge: short an EQUAL-WEIGHT index so there's no cap-weight mega-cap distortion
+# (cap-weighted XLY is ~22% Amazon -- shorting it = hugely short Amazon, not a hedge).
+# The niche equal-weight CONSUMER ETFs (RSPD/RSPS) aren't borrowable, so we use RSP
+# (equal-weight S&P 500): ~$70B, reliably shortable, still no mega-cap concentration.
+# Tradeoff vs RSPD/RSPS: hedges market beta broadly, not the consumer sector itself.
+HEDGE_DEFAULT = "RSP"
+HEDGE_BY_SUBSECTOR: dict[str, str] = {}
+HEDGE_TICKERS = ("RSP",)
 
 
 def hedge_etf(subsector: str) -> str:
