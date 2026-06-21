@@ -44,13 +44,15 @@ UNIVERSE: dict[str, tuple[str, str, float]] = {
     "MAR": ("hotels", "lodging", 0.45),
     "HLT": ("hotels", "lodging", 0.45),
     "H": ("hotels", "lodging", 0.45),
-    # Beverages -- no free demand reader yet, so sized on THESIS + VALUE only
-    # (demand catalyst defaults to 0). trust is unused without a signal.
-    "CELH": ("beverages", "none", 0.0),
-    "MNST": ("beverages", "none", 0.0),
-    "KO": ("beverages", "none", 0.0),
-    "PEP": ("beverages", "none", 0.0),
-    "KDP": ("beverages", "none", 0.0),
+    # Beverages -- growth/functional and mega-cap staples are DIFFERENT comp groups,
+    # so they get separate subsectors: the book never pairs a growth long vs a staple
+    # short by accident, and the per-subsector cap treats each sleeve on its own.
+    # No free demand reader yet -> sized on THESIS + VALUE only (catalyst defaults 0).
+    "CELH": ("bev-growth", "none", 0.0),
+    "MNST": ("bev-growth", "none", 0.0),
+    "KO": ("bev-staples", "none", 0.0),
+    "PEP": ("bev-staples", "none", 0.0),
+    "KDP": ("bev-staples", "none", 0.0),
 }
 
 # Each subsector's signal series -> the names whose demand it reads.
