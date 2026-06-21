@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from src import backtest, book, macro, signals
+from src import backtest, book, macro, shorts, signals
 
 
 def test_catalysts_never_flip_a_thesis():
@@ -79,6 +79,15 @@ def test_bootstrap_flags_a_clear_edge_and_clears_noise():
     assert edge["significant"] and edge["ci90_ann_pct"][0] > 0
     noise = backtest._bootstrap(pd.Series([0.1, -0.1] * 8), n=500)
     assert not noise["significant"]  # zero-mean -> CI spans 0
+
+
+def test_short_scanner_flags():
+    up = {"above_200dma": True, "r6": 0.30}
+    assert any("MOMENTUM" in f for f in shorts._flags(0.03, 4.0, 44, up))  # uptrend
+    assert any("SQUEEZE" in f for f in shorts._flags(0.20, 8.0, None, {}))  # crowded short
+    assert any("EVENT" in f for f in shorts._flags(0.03, 2.0, 5, {}))  # earnings imminent
+    clean = shorts._flags(0.03, 2.0, 60, {"above_200dma": False, "r6": -0.1})
+    assert clean == []  # quiet name, no flags
 
 
 def test_macro_label_thresholds():
