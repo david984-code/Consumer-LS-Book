@@ -67,6 +67,12 @@ THESES: dict[str, float] = {
     # add your other names here, e.g. "DAL": -1.0, "LVS": 1.0, ...
 }
 
+# Concentration caps (fraction of gross). No single name above MAX_NAME, no single
+# subsector above MAX_SUBSECTOR -- so the book stays diversified once it has several
+# views. (With only one or two theses the caps can't bind and are relaxed.)
+MAX_NAME = 0.25
+MAX_SUBSECTOR = 0.40
+
 # SEC CIKs (for the XBRL revenue used by the valuation layer).
 CIK: dict[str, int] = {
     "UBER": 1543151,

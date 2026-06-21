@@ -73,8 +73,11 @@ uv run python -m src.book      # 1) demand radar  2) your thesis-anchored book
       price-to-sales vs its own ~5y history (price from yfinance, revenue from SEC
       XBRL, Q4 = annual − 9-month). Resizes theses alongside demand — cheap confirms
       a long, expensive confirms a short — the "other level of research".
-6. ⬜ Per-subsector concentration caps; a macro context panel (informational only).
-7. ⬜ Bootstrap inference on the long-minus-short spread vs a control benchmark.
+6. ✅ **Concentration caps** — water-fill so no name exceeds 25% and no subsector
+      exceeds 40% of gross, redistributing to names with room. With too few views to
+      diversify, the caps relax (and say so) rather than forcing the book to cash.
+7. ⬜ A macro context panel (informational only — never moves sizing).
+8. ⬜ Bootstrap inference on the long-minus-short spread vs a control benchmark.
 
 ## Part of a series
 

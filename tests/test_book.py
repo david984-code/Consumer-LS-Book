@@ -35,6 +35,29 @@ def test_short_thesis_grows_when_demand_cold():
     assert book._resize(thesis=-2.0, demand=+1.0, value=0.0) > -2.0  # hot trims a short
 
 
+def test_caps_limit_a_dominant_name():
+    w = pd.Series({"A": 0.8, "B": 0.05, "C": 0.05, "D": -0.05, "E": -0.05})
+    sub = pd.Series(
+        dict.fromkeys("ABCDE", "x") | {"A": "a", "B": "b", "C": "c", "D": "d", "E": "e"}
+    )
+    r = book._apply_caps(w, sub, 0.25, 0.40)
+    assert r.abs().max() <= 0.25 + 1e-3  # no name over the 25% cap
+    assert abs(r.abs().sum() - 1.0) < 1e-2  # still fully grossed
+    assert r["A"] > 0 and r["D"] < 0  # signs preserved
+
+
+def test_caps_limit_a_dominant_subsector():
+    w = pd.Series({"A": 0.3, "B": 0.3, "C": 0.3, "D": -0.1, "E": -0.1, "F": -0.1, "G": -0.1})
+    sub = pd.Series({"A": "air", "B": "air", "C": "air", "D": "g", "E": "h", "F": "r", "G": "s"})
+    r = book._apply_caps(w, sub, 0.25, 0.40)
+    assert r[["A", "B", "C"]].abs().sum() <= 0.40 + 1e-3  # subsector under its cap
+
+
+def test_single_name_relaxes_to_full_gross():
+    r = book._apply_caps(pd.Series({"UBER": 2.17}), pd.Series({"UBER": "rideshare"}), 0.25, 0.40)
+    assert abs(r["UBER"] - 1.0) < 1e-6  # one view -> caps can't bind, stays 100%
+
+
 def test_spy_hedge_zeroes_net_beta():
     # Long a high-beta name, short a low-beta one -> net long beta -> hedge < 0.
     w = pd.Series({"hi": 0.5, "lo": -0.5})

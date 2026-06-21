@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 
+import numpy as np
 import pandas as pd
 
 import config
@@ -55,6 +56,41 @@ def _spy_hedge(weight: pd.Series, beta: pd.Series) -> float:
     return round(-float((weight * beta).sum()), 3)
 
 
+def _apply_caps(
+    weight: pd.Series, subsector: pd.Series, name_cap: float, sub_cap: float
+) -> pd.Series:
+    """Water-fill weights so no name exceeds name_cap and no subsector exceeds
+    sub_cap (as a fraction of gross), redistributing freed weight to names with
+    room. With too few names/subsectors to satisfy the caps, they relax so the
+    book stays fully grossed."""
+    w = weight.astype(float).to_numpy().copy()
+    sub = subsector.reindex(weight.index).to_numpy()
+    tot = float(np.abs(w).sum())
+    if tot == 0:
+        return weight
+    sign = np.where(w >= 0, 1.0, -1.0)
+    a = np.abs(w) / tot  # gross 1
+    subs = list(dict.fromkeys(sub))
+    for _ in range(2000):
+        for s in subs:
+            m = sub == s
+            ss = a[m].sum()
+            if ss > sub_cap + 1e-12:
+                a[m] *= sub_cap / ss
+        a = np.minimum(a, name_cap)
+        deficit = 1.0 - a.sum()
+        if deficit <= 1e-9:
+            break
+        room = np.maximum(name_cap - a, 0.0)
+        if room.sum() <= 1e-9:
+            break  # fully capped given the names available
+        a = a + deficit * room / room.sum()
+    g = a.sum()
+    if g > 1e-9:
+        a = a / g  # rescale to full gross (relaxes caps only if they can't bind)
+    return pd.Series(a * sign, index=weight.index).round(3)
+
+
 def _resize(thesis: float, demand: float, value: float) -> float:
     """Resize a thesis by the demand + valuation catalysts, clamped so the sign
     never flips. A catalyst that *confirms* the thesis adds; one that contradicts
@@ -89,8 +125,14 @@ def positions(force: bool = False) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     if df.empty:
         return df
-    gross = df["sized"].abs().sum() or 1.0
-    df["weight"] = (df["sized"] / gross).round(3)
+    df["subsector"] = [config.UNIVERSE[n][0] for n in df["name"]]
+    capped = _apply_caps(
+        pd.Series(df["sized"].to_numpy(), index=df["name"]),
+        pd.Series(df["subsector"].to_numpy(), index=df["name"]),
+        config.MAX_NAME,
+        config.MAX_SUBSECTOR,
+    )
+    df["weight"] = df["name"].map(capped)
     return df.sort_values("weight", ascending=False).reset_index(drop=True)
 
 
@@ -101,12 +143,19 @@ def build(force: bool = False) -> dict:
     if not pos.empty:
         spy = _spy_hedge(pos["weight"], pos["beta"])
         net_beta = float((pos["weight"] * pos["beta"]).sum())
+        sub_exp = pos.groupby("subsector")["weight"].apply(lambda s: float(s.abs().sum()))
+        relaxed = bool(
+            pos["weight"].abs().max() > config.MAX_NAME + 1e-3
+            or sub_exp.max() > config.MAX_SUBSECTOR + 1e-3
+        )
         book.update(
             gross_pct=round(float(pos["weight"].abs().sum()) * 100, 0),
             net_dollar_pct=round(float(pos["weight"].sum()) * 100, 1),
             spy_hedge_pct=round(spy * 100, 1),
             net_beta_after_hedge=round(net_beta + spy, 2),
             max_position_pct=round(float(pos["weight"].abs().max()) * 100, 1),
+            subsector_exposure={k: round(v * 100, 1) for k, v in sub_exp.items()},
+            caps_relaxed=relaxed,
             positions=dict(zip(pos["name"], pos["weight"], strict=True)),
         )
     _print(radar, pos, book)
@@ -142,8 +191,13 @@ def _print(radar: pd.DataFrame, pos: pd.DataFrame, book: dict) -> None:
     )
     print(
         f"  RISK: gross {book['gross_pct']:.0f}%, net-$ {book['net_dollar_pct']:+.0f}%, "
-        f"net-beta {book['net_beta_after_hedge']:+.2f}, max {book['max_position_pct']:.0f}%"
+        f"net-beta {book['net_beta_after_hedge']:+.2f}, max {book['max_position_pct']:.0f}% "
+        f"(cap {config.MAX_NAME:.0%})"
     )
+    exp = ", ".join(f"{k} {v:.0f}%" for k, v in book["subsector_exposure"].items())
+    print(f"  SUBSECTOR (cap {config.MAX_SUBSECTOR:.0%}): {exp}")
+    if book["caps_relaxed"]:
+        print("  * caps relaxed -- too few views to diversify; add more theses to bind them.")
     print("  Your thesis sets direction; demand + valuation only resize it (never")
     print("  flip). UBER stays long: soft demand trims, but it's cheap -> value adds.")
 
