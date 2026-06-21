@@ -50,14 +50,33 @@ demand signal is soft — and because the value signal reads it **cheap**, valua
 ## Run
 
 ```bash
-uv run python -m src.book      # 1) demand radar  2) your thesis-anchored book
+uv run python -m src.book       # 1) demand radar  2) the book  3) macro context
+uv run python -m src.backtest   # honest walk-forward test of the systematic signals
 ```
+
+## Does it actually work? (the honest test)
+
+`src/backtest.py` builds a point-in-time, dollar-neutral cross-sectional L/S
+portfolio from each *systematic* signal every quarter (long what it likes, short
+what it doesn't), measures the **next** quarter's return (no look-ahead), and
+block-bootstraps the mean spread:
+
+```
+demand : +12.3%/yr  90% CI [-0.0%, +23.0%]  hit 70%  n=20  -> not distinguishable from 0
+value  :  +1.2%/yr  90% CI [ -8.8%, +10.1%]  hit 62%  n=13  -> not distinguishable from 0
+```
+
+Demand is *suggestive* (70% hit rate, mostly-positive) but underpowered — its CI
+still touches zero; value is flat. **Neither is a standalone strategy.** That is
+the whole point: the signals are conviction/sizing **inputs** to a discretionary,
+thesis-anchored book — not an autopilot. The backtest is here to keep us honest
+about that, not to advertise an edge.
 
 ## What it deliberately does NOT do
 
 - **No macro overlay.** Regime/rates are read judgmentally, not wired into sizing.
-- **No backtested alpha claim.** The readers showed free data nowcasts *the print*
-  well but systematic pairs don't pay cleanly — so this informs a human's
+- **No backtested alpha claim.** As the test above shows, the systematic spreads
+  aren't distinguishable from zero on the data we have — so this informs a human's
   conviction, it doesn't trade itself.
 
 ## Roadmap
@@ -81,7 +100,10 @@ uv run python -m src.book      # 1) demand radar  2) your thesis-anchored book
       graded risk-on/off and averaged into a label. By design it **never touches
       sizing** — the systematic macro overlay was tested and disproven; macro is
       read judgmentally only.
-8. ⬜ Bootstrap inference on the long-minus-short spread vs a control benchmark.
+8. ✅ **Walk-forward signal test** — point-in-time, dollar-neutral L/S spread per
+      signal, block-bootstrapped CI (see "Does it actually work?" above). Confirms
+      the systematic spreads aren't distinguishable from zero → conviction inputs,
+      not an autopilot.
 
 ## Part of a series
 

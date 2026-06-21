@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from src import book, macro, signals
+from src import backtest, book, macro, signals
 
 
 def test_catalysts_never_flip_a_thesis():
@@ -65,6 +65,20 @@ def test_spy_hedge_zeroes_net_beta():
     hedge = book._spy_hedge(w, b)
     assert hedge < 0  # short SPY to offset the net-long beta
     assert abs((w * b).sum() + hedge) < 1e-9  # net beta + hedge == 0
+
+
+def test_ls_spread_is_dollar_neutral_and_directional():
+    panel = pd.DataFrame({"A": [2.0], "B": [0.0], "C": [-2.0]})
+    fwd = pd.DataFrame({"A": [0.10], "B": [0.0], "C": [-0.10]})
+    sp = backtest._ls_spread(panel, fwd)
+    assert sp.iloc[0] > 0  # long the liked (rose), short the disliked (fell) -> positive
+
+
+def test_bootstrap_flags_a_clear_edge_and_clears_noise():
+    edge = backtest._bootstrap(pd.Series([0.05] * 12), n=500)
+    assert edge["significant"] and edge["ci90_ann_pct"][0] > 0
+    noise = backtest._bootstrap(pd.Series([0.1, -0.1] * 8), n=500)
+    assert not noise["significant"]  # zero-mean -> CI spans 0
 
 
 def test_macro_label_thresholds():
