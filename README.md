@@ -5,42 +5,48 @@ into **one consumer demand scorecard and a market-neutral long/short tilt.**
 
 It is a **conviction / sizing input to a discretionary book — not an autopilot.**
 
-## How it works (plainly)
+## How it works (plainly) — two separate layers
 
-1. For each subsector, read **today's demand temperature** from its free-data
-   signal — how hot or cold real-world demand is running versus its own seasonal
-   trend (a z-score: +2 = unusually hot, −2 = unusually cold).
-2. Put every consumer stock on a **scorecard** with that temperature.
-3. **Trust each signal only as much as it has earned.** A `trust` weight (0–1)
-   encodes the readers' validated fit: TSA reads Southwest (≈1.0) but barely
-   Delta (≈0.45, its international flights are invisible to TSA); NYC trips read
-   Uber (0.9) but not Lyft (0.2, that bridge came up null).
-4. `conviction = temperature × trust`. Demean across the universe → **long the
-   relatively hottest names, short the coldest**, net-zero by construction.
-   Low-trust names get small positions automatically.
+**The alt-data informs the discretionary view; it does not replace it.** A short-
+term demand signal is *not* a valuation. So the book is thesis-anchored:
 
-```
-conviction(name) = demand_temperature(subsector) × trust(name)
-weight(name)     = (conviction − universe mean) / gross   # sum ≈ 0, dollar-neutral
-```
-
-## Example output (live)
+1. **Demand radar** (idea generation). For each subsector, read today's demand
+   temperature from its free signal — how hot/cold demand is running vs its own
+   seasonal trend (a z-score). `conviction = temperature × trust`, where `trust`
+   (0–1) is how much that signal has *earned*: TSA reads Southwest (≈0.9) but
+   barely Delta (0.45, its intl flights are invisible to TSA); NYC reads Uber
+   (0.9) not Lyft (0.2). This is a **watchlist**, not positions.
+2. **The book** (positions). Direction and conviction come from **your fundamental
+   views** in `config.THESES` (−2 strong short … +2 strong long). The demand
+   radar only **resizes** each view (a confirming signal adds, a contradicting one
+   trims) within ±50% — **it can never flip your direction.** Then beta-neutralize
+   with an SPY hedge.
 
 ```
-name  subsector   demand z  trust  conviction   weight
-LUV   airlines        +0.17   0.90        0.15   +11.6%   <- airlines running hot,
-JBLU  airlines        +0.17   0.90        0.15   +11.6%      Southwest/JetBlue read best
-DAL   airlines        +0.17   0.45        0.08    +5.4%   <- smaller (TSA misses intl)
-LVS   casinos         -0.04   0.90       -0.04    -5.4%
-UBER  rideshare       -0.26   0.90       -0.24   -23.2%   <- rideshare cooling, high trust
-LONG : LUV, JBLU, ALK, DAL, AAL, UAL    SHORT: casinos, LYFT, UBER
+sized(name)  = thesis × (1 ± up to 50% from the demand catalyst)   # sign locked to thesis
+weight(name) = sized / gross ;  + SPY hedge so net beta ≈ 0
 ```
+
+So a deeply-undervalued high-conviction long like **UBER stays long** even when
+its demand signal is soft — the soft quarter merely trims the position. The
+earlier version wrongly *shorted* Uber on a soft demand reading; that was the bug
+this design fixes.
+
+## Example output (live, with UBER set to +2 strong long)
+
+```
+2) THE BOOK  (your THESES, sized by demand, beta-neutral)
+  name   thesis  demand   sized  beta   weight
+  UBER     +2.0   -0.24   +1.81  1.19  +100.0%   <- stays LONG; soft demand only trims +2.0 -> +1.81
+    + SPY hedge -119% -> net beta +0.00
+```
+
+(Add your other names to `config.THESES` and they join the book.)
 
 ## Run
 
 ```bash
-uv run python -m src.signals   # the four live demand temperatures
-uv run python -m src.book      # the scorecard + proposed L/S tilt
+uv run python -m src.book      # 1) demand radar  2) your thesis-anchored book
 ```
 
 ## What it deliberately does NOT do
@@ -52,15 +58,18 @@ uv run python -m src.book      # the scorecard + proposed L/S tilt
 
 ## Roadmap
 
-1. ✅ Live scorecard + L/S tilt across all four subsectors (rideshare, airlines,
-      gaming, hotels) — 15 names.
-2. ✅ **Beta-neutralized** — compute each name's β vs SPY, add an SPY hedge so the
-      book's net beta ≈ 0 (it was secretly ~+0.18, long high-beta airlines → a hidden
-      market bet; a ~−18% SPY hedge fixes it). Full risk panel (gross / net-$ / net-β / max).
-3. ✅ Lodging wired (hotels MAR/HLT/H) via accommodation employment — **provisional**
-      proxy, flagged; swap in the dedicated lodging reader's validated RevPAR signal.
-4. ⬜ Per-subsector concentration caps; a macro context panel (informational only).
-5. ⬜ Bootstrap inference on the long-minus-short spread vs a control benchmark.
+1. ✅ Demand radar across all four subsectors (rideshare, airlines, gaming, hotels).
+2. ✅ **Beta-neutralized** — each name's β vs SPY + an SPY hedge so net beta ≈ 0,
+      with a full risk panel (gross / net-$ / net-β / max).
+3. ✅ Lodging wired (hotels MAR/HLT/H) via accommodation employment (provisional).
+4. ✅ **Thesis-anchored** — positions come from your fundamental views; the demand
+      signal only resizes them (±50%), never flips direction. (Fixes the old bug of
+      shorting an undervalued long like UBER on a soft demand quarter.)
+5. ⬜ **Valuation layer** — pull a cheap/expensive signal (EV/EBITDA, FCF yield vs
+      history/peers) so the book has a systematic *value* anchor alongside your
+      manual theses — the "other level of research".
+6. ⬜ Per-subsector concentration caps; a macro context panel (informational only).
+7. ⬜ Bootstrap inference on the long-minus-short spread vs a control benchmark.
 
 ## Part of a series
 

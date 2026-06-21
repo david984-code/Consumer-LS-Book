@@ -6,18 +6,25 @@ import pandas as pd
 from src import book, signals
 
 
-def test_weights_are_dollar_neutral_long_hot_short_cold():
-    conv = pd.Series({"hot": 2.0, "mid": 0.0, "cold": -2.0})
-    w = book._weights(conv)
-    assert abs(w.sum()) < 1e-9  # net ~ zero (market-neutral)
-    assert abs(w.abs().sum() - 1.0) < 1e-9  # gross 100%
-    assert w["hot"] > 0 > w["cold"]  # long the hot, short the cold
+def test_demand_never_flips_a_thesis():
+    # A strong long with the WORST possible (cold) demand stays LONG, just trimmed.
+    sized = book._resize(thesis=2.0, catalyst=-5.0)
+    assert sized > 0  # still a long -- demand cannot flip the thesis
+    assert sized < 2.0  # but trimmed by the soft demand
 
 
-def test_weights_lean_with_conviction_magnitude():
-    # All positive convictions -> demeaning still produces longs and shorts.
-    w = book._weights(pd.Series({"a": 3.0, "b": 1.0}))
-    assert w["a"] > 0 > w["b"] and abs(w.sum()) < 1e-9
+def test_demand_confirms_and_adds_within_a_bound():
+    base = 2.0
+    hot = book._resize(base, catalyst=+1.0)  # confirming demand adds size
+    cold = book._resize(base, catalyst=-1.0)  # contradicting trims
+    assert hot > base > cold > 0
+    assert hot <= base * 1.5 and cold >= base * 0.5  # bounded to +-50%
+
+
+def test_short_thesis_grows_when_demand_cold():
+    # A short thesis confirmed by COLD demand gets bigger (more negative).
+    assert book._resize(thesis=-2.0, catalyst=-1.0) < -2.0
+    assert book._resize(thesis=-2.0, catalyst=+1.0) > -2.0  # hot demand trims a short
 
 
 def test_spy_hedge_zeroes_net_beta():

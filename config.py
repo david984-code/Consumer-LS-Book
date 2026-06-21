@@ -54,3 +54,15 @@ SIGNAL_NAMES: dict[str, list[str]] = {
     "macau": ["LVS", "MLCO", "WYNN", "MGM"],
     "lodging": ["MAR", "HLT", "H"],
 }
+
+# ---------------------------------------------------------------------------
+# YOUR FUNDAMENTAL VIEWS -- this is where your own research lives, and it is what
+# ACTUALLY drives the book. Scale: -2 strong short .. 0 no view .. +2 strong long.
+# The demand radar only SIZES these views (trims/adds); it can NEVER flip your
+# direction. A name with no view here is idea-generation only, not a position.
+# The alt-data informs the discretionary book -- it does not replace it.
+# ---------------------------------------------------------------------------
+THESES: dict[str, float] = {
+    "UBER": 2.0,  # strong long: undervalued, ~$70 downside floor (fundamental research)
+    # add your other names here, e.g. "DAL": -1.0, "LVS": 1.0, ...
+}
