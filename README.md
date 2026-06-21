@@ -20,9 +20,13 @@ term demand signal is *not* a valuation. So the book is thesis-anchored:
    views** in `config.THESES` (−2 strong short … +2 strong long). Two systematic
    signals only **resize** each view — never flip it (bounded to ±50%):
    - **demand** (the radar above) — a confirming reading adds, a contradicting trims;
-   - **value** — z-score of each name's price-to-sales vs its own ~5y history (price
-     from yfinance, revenue from SEC XBRL with Q4 = annual − 9-month). *Cheap*
-     confirms a long, *expensive* confirms a short.
+   - **value** — a sector-appropriate cheap/expensive read vs each name's own ~5y
+     history: **EV/EBIT** for the capital-intensive sectors (airlines, casinos,
+     hotels — so leverage and profitability count, which price-to-sales ignores)
+     and **price-to-sales** for rideshare (where EBIT swings negative). *Cheap*
+     confirms a long, *expensive* confirms a short. Free data: price from yfinance,
+     fundamentals from SEC XBRL (EBIT = operating income, which is universally
+     tagged; Q4 derived as annual − 9-month).
 
    Then beta-neutralize with an SPY hedge.
 
@@ -88,10 +92,11 @@ about that, not to advertise an edge.
 4. ✅ **Thesis-anchored** — positions come from your fundamental views; the demand
       signal only resizes them (±50%), never flips direction. (Fixes the old bug of
       shorting an undervalued long like UBER on a soft demand quarter.)
-5. ✅ **Valuation layer** — a systematic cheap/expensive signal: z-score each name's
-      price-to-sales vs its own ~5y history (price from yfinance, revenue from SEC
-      XBRL, Q4 = annual − 9-month). Resizes theses alongside demand — cheap confirms
-      a long, expensive confirms a short — the "other level of research".
+5. ✅ **Valuation layer (sector-appropriate blend)** — EV/EBIT vs own history for the
+      capital-intensive sectors (airlines/casinos/hotels), price-to-sales for
+      rideshare, P/S fallback where EBIT history is too negative. Resizes theses
+      alongside demand — cheap confirms a long, expensive a short — the "other level
+      of research".
 6. ✅ **Concentration caps** — water-fill so no name exceeds 25% and no subsector
       exceeds 40% of gross, redistributing to names with room. With too few views to
       diversify, the caps relax (and say so) rather than forcing the book to cash.
