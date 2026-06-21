@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from src import book, signals
+from src import book, macro, signals
 
 
 def test_catalysts_never_flip_a_thesis():
@@ -65,6 +65,13 @@ def test_spy_hedge_zeroes_net_beta():
     hedge = book._spy_hedge(w, b)
     assert hedge < 0  # short SPY to offset the net-long beta
     assert abs((w * b).sum() + hedge) < 1e-9  # net beta + hedge == 0
+
+
+def test_macro_label_thresholds():
+    # Display-only regime labels: extremes read clearly, the middle reads neutral.
+    assert macro._label(1.0) == "RISK-ON"
+    assert macro._label(-1.0) == "RISK-OFF / late-cycle"
+    assert macro._label(0.0) == "NEUTRAL / mid-cycle"
 
 
 def test_temperature_zscores_latest_growth():

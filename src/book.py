@@ -21,6 +21,7 @@ import pandas as pd
 
 import config
 
+from . import macro
 from .data.prices import betas
 from .signals import current_signals
 from .valuation import cached_scores
@@ -159,6 +160,10 @@ def build(force: bool = False) -> dict:
             positions=dict(zip(pos["name"], pos["weight"], strict=True)),
         )
     _print(radar, pos, book)
+    try:
+        macro.print_panel()  # informational only -- never feeds back into sizing
+    except Exception as exc:  # noqa: BLE001
+        print(f"\n3) MACRO CONTEXT unavailable ({exc})")
     (config.OUTPUT_DIR / "book.json").write_text(json.dumps(book, indent=2))
     radar.to_csv(config.OUTPUT_DIR / "demand_radar.csv", index=False)
     return book

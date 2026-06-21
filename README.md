@@ -76,7 +76,11 @@ uv run python -m src.book      # 1) demand radar  2) your thesis-anchored book
 6. ✅ **Concentration caps** — water-fill so no name exceeds 25% and no subsector
       exceeds 40% of gross, redistributing to names with room. With too few views to
       diversify, the caps relax (and say so) rather than forcing the book to cash.
-7. ⬜ A macro context panel (informational only — never moves sizing).
+7. ✅ **Macro context panel** — a display-only regime read (yield curve, HY credit
+      spread, unemployment, consumer sentiment, financial conditions from FRED),
+      graded risk-on/off and averaged into a label. By design it **never touches
+      sizing** — the systematic macro overlay was tested and disproven; macro is
+      read judgmentally only.
 8. ⬜ Bootstrap inference on the long-minus-short spread vs a control benchmark.
 
 ## Part of a series
