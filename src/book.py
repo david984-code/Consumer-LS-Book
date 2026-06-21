@@ -71,6 +71,10 @@ def _apply_caps(
         return weight
     sign = np.where(w >= 0, 1.0, -1.0)
     a = np.abs(w) / tot  # gross 1
+    # If the name cap can't even sum to full gross (too few names), it can't bind
+    # without flattening conviction -- so relax entirely and keep conviction weights.
+    if name_cap * len(a) < 1.0 - 1e-9:
+        return pd.Series(a * sign, index=weight.index).round(3)
     subs = list(dict.fromkeys(sub))
     for _ in range(2000):
         for s in subs:

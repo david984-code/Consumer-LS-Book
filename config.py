@@ -53,6 +53,9 @@ UNIVERSE: dict[str, tuple[str, str, float]] = {
     "KO": ("bev-staples", "none", 0.0),
     "PEP": ("bev-staples", "none", 0.0),
     "KDP": ("bev-staples", "none", 0.0),
+    # Delivery / cruise -- discretionary, no demand reader (thesis + value only)
+    "DASH": ("delivery", "none", 0.0),
+    "NCLH": ("cruise", "none", 0.0),
 }
 
 # Each subsector's signal series -> the names whose demand it reads.
@@ -72,8 +75,14 @@ SIGNAL_NAMES: dict[str, list[str]] = {
 # The alt-data informs the discretionary book -- it does not replace it.
 # ---------------------------------------------------------------------------
 THESES: dict[str, float] = {
-    "UBER": 2.0,  # strong long: undervalued, ~$70 downside floor (fundamental research)
-    # add your other names here, e.g. "DAL": -1.0, "LVS": 1.0, ...
+    # Longs you believe in (conviction -2..+2 -- tune these to your real conviction).
+    "UBER": 2.0,  # strong long: undervalued, ~$70 downside floor
+    "CELH": 1.0,  # long: energy-drink growth (verify organic vs Alani Nu)
+    "MNST": 1.0,  # long: energy-drink quality incumbent
+    "DASH": 1.0,  # long: delivery
+    "NCLH": 1.0,  # long: cruise
+    # One conviction short -- sized small for momentum risk (run `python -m src.shorts`).
+    "MAR": -1.0,  # short: overvalued, but in a strong uptrend
 }
 
 # Concentration caps (fraction of gross). No single name above MAX_NAME, no single
@@ -119,4 +128,6 @@ CIK: dict[str, int] = {
     "KO": 21344,
     "PEP": 77476,
     "KDP": 1418135,
+    "DASH": 1792789,
+    "NCLH": 1513761,
 }

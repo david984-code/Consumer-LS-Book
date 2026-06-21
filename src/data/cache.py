@@ -31,7 +31,7 @@ def save(name: str, df: pd.DataFrame) -> None:
 
 def load(name: str) -> pd.DataFrame:
     df = pd.read_csv(_path(name), index_col=0)
-    # Re-parse a datetime index if it looks like one.
+    # Re-parse a datetime index if it looks like one (ISO dates only -> no warning).
     with contextlib.suppress(ValueError, TypeError):
-        df.index = pd.to_datetime(df.index)
+        df.index = pd.to_datetime(df.index, format="ISO8601")
     return df
