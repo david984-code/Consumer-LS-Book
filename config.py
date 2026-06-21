@@ -81,8 +81,8 @@ THESES: dict[str, float] = {
     "MNST": 1.0,  # long: energy-drink quality incumbent
     "DASH": 1.0,  # long: delivery
     "NCLH": 1.0,  # long: cruise
-    # One conviction short -- sized small for momentum risk (run `python -m src.shorts`).
-    "MAR": -1.0,  # short: overvalued, but in a strong uptrend
+    # "MAR": -1.0,  # short thesis (overvalued) -- DEFERRED: can't short in the
+    # beneficiary paper account (no borrow). Re-add once on a shortable account.
 }
 
 # Concentration caps (fraction of gross). No single name above MAX_NAME, no single
