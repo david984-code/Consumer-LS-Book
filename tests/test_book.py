@@ -6,25 +6,33 @@ import pandas as pd
 from src import book, signals
 
 
-def test_demand_never_flips_a_thesis():
-    # A strong long with the WORST possible (cold) demand stays LONG, just trimmed.
-    sized = book._resize(thesis=2.0, catalyst=-5.0)
-    assert sized > 0  # still a long -- demand cannot flip the thesis
-    assert sized < 2.0  # but trimmed by the soft demand
+def test_catalysts_never_flip_a_thesis():
+    # A strong long with the WORST possible demand AND valuation stays LONG.
+    sized = book._resize(thesis=2.0, demand=-5.0, value=-5.0)
+    assert sized > 0  # still a long -- catalysts cannot flip the thesis
+    assert sized < 2.0  # but trimmed hard (to the -50% bound)
 
 
-def test_demand_confirms_and_adds_within_a_bound():
+def test_catalysts_confirm_and_add_within_a_bound():
     base = 2.0
-    hot = book._resize(base, catalyst=+1.0)  # confirming demand adds size
-    cold = book._resize(base, catalyst=-1.0)  # contradicting trims
+    hot = book._resize(base, demand=+1.0, value=+1.0)  # both confirm -> add
+    cold = book._resize(base, demand=-1.0, value=-1.0)  # both contradict -> trim
     assert hot > base > cold > 0
     assert hot <= base * 1.5 and cold >= base * 0.5  # bounded to +-50%
 
 
+def test_value_can_offset_soft_demand():
+    # UBER case: soft demand but cheap valuation -> net roughly neutral / a small add.
+    soft_only = book._resize(2.0, demand=-0.24, value=0.0)
+    with_value = book._resize(2.0, demand=-0.24, value=+0.48)
+    assert with_value > soft_only  # cheapness offsets the soft demand
+    assert with_value > 2.0  # ... enough to add to the long here
+
+
 def test_short_thesis_grows_when_demand_cold():
     # A short thesis confirmed by COLD demand gets bigger (more negative).
-    assert book._resize(thesis=-2.0, catalyst=-1.0) < -2.0
-    assert book._resize(thesis=-2.0, catalyst=+1.0) > -2.0  # hot demand trims a short
+    assert book._resize(thesis=-2.0, demand=-1.0, value=0.0) < -2.0
+    assert book._resize(thesis=-2.0, demand=+1.0, value=0.0) > -2.0  # hot trims a short
 
 
 def test_spy_hedge_zeroes_net_beta():

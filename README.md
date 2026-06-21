@@ -17,28 +17,32 @@ term demand signal is *not* a valuation. So the book is thesis-anchored:
    barely Delta (0.45, its intl flights are invisible to TSA); NYC reads Uber
    (0.9) not Lyft (0.2). This is a **watchlist**, not positions.
 2. **The book** (positions). Direction and conviction come from **your fundamental
-   views** in `config.THESES` (−2 strong short … +2 strong long). The demand
-   radar only **resizes** each view (a confirming signal adds, a contradicting one
-   trims) within ±50% — **it can never flip your direction.** Then beta-neutralize
-   with an SPY hedge.
+   views** in `config.THESES` (−2 strong short … +2 strong long). Two systematic
+   signals only **resize** each view — never flip it (bounded to ±50%):
+   - **demand** (the radar above) — a confirming reading adds, a contradicting trims;
+   - **value** — z-score of each name's price-to-sales vs its own ~5y history (price
+     from yfinance, revenue from SEC XBRL with Q4 = annual − 9-month). *Cheap*
+     confirms a long, *expensive* confirms a short.
+
+   Then beta-neutralize with an SPY hedge.
 
 ```
-sized(name)  = thesis × (1 ± up to 50% from the demand catalyst)   # sign locked to thesis
+sized(name)  = thesis × (1 ± up to 50% from demand + value)   # sign locked to thesis
 weight(name) = sized / gross ;  + SPY hedge so net beta ≈ 0
 ```
 
-So a deeply-undervalued high-conviction long like **UBER stays long** even when
-its demand signal is soft — the soft quarter merely trims the position. The
-earlier version wrongly *shorted* Uber on a soft demand reading; that was the bug
-this design fixes.
+So a deeply-undervalued high-conviction long like **UBER stays long** even when its
+demand signal is soft — and because the value signal reads it **cheap**, valuation
+*adds* to the long and offsets the soft demand. The earlier version wrongly
+*shorted* Uber on a soft demand reading; that was the bug this design fixes.
 
 ## Example output (live, with UBER set to +2 strong long)
 
 ```
-2) THE BOOK  (your THESES, sized by demand, beta-neutral)
-  name   thesis  demand   sized  beta   weight
-  UBER     +2.0   -0.24   +1.81  1.19  +100.0%   <- stays LONG; soft demand only trims +2.0 -> +1.81
-    + SPY hedge -119% -> net beta +0.00
+2) THE BOOK  (your THESES, sized by demand + value, beta-neutral)
+  name   thesis  demand   value   sized  beta   weight
+  UBER     +2.0   -0.24   +0.48   +2.17  1.36  +100.0%   <- soft demand trims, but cheap -> value adds
+    + SPY hedge -136% -> net beta +0.00
 ```
 
 (Add your other names to `config.THESES` and they join the book.)
@@ -65,9 +69,10 @@ uv run python -m src.book      # 1) demand radar  2) your thesis-anchored book
 4. ✅ **Thesis-anchored** — positions come from your fundamental views; the demand
       signal only resizes them (±50%), never flips direction. (Fixes the old bug of
       shorting an undervalued long like UBER on a soft demand quarter.)
-5. ⬜ **Valuation layer** — pull a cheap/expensive signal (EV/EBITDA, FCF yield vs
-      history/peers) so the book has a systematic *value* anchor alongside your
-      manual theses — the "other level of research".
+5. ✅ **Valuation layer** — a systematic cheap/expensive signal: z-score each name's
+      price-to-sales vs its own ~5y history (price from yfinance, revenue from SEC
+      XBRL, Q4 = annual − 9-month). Resizes theses alongside demand — cheap confirms
+      a long, expensive confirms a short — the "other level of research".
 6. ⬜ Per-subsector concentration caps; a macro context panel (informational only).
 7. ⬜ Bootstrap inference on the long-minus-short spread vs a control benchmark.
 

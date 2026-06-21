@@ -66,3 +66,22 @@ THESES: dict[str, float] = {
     "UBER": 2.0,  # strong long: undervalued, ~$70 downside floor (fundamental research)
     # add your other names here, e.g. "DAL": -1.0, "LVS": 1.0, ...
 }
+
+# SEC CIKs (for the XBRL revenue used by the valuation layer).
+CIK: dict[str, int] = {
+    "UBER": 1543151,
+    "LYFT": 1759509,
+    "LUV": 92380,
+    "JBLU": 1158463,
+    "ALK": 766421,
+    "DAL": 27904,
+    "AAL": 6201,
+    "UAL": 100517,
+    "LVS": 1300514,
+    "MLCO": 1297996,
+    "WYNN": 1174922,
+    "MGM": 789570,
+    "MAR": 1048286,
+    "HLT": 1585689,
+    "H": 1468174,
+}

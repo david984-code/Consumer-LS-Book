@@ -22,9 +22,11 @@ import config
 
 from .data.prices import betas
 from .signals import current_signals
+from .valuation import cached_scores
 
-_CATALYST_GAIN = 0.40  # how far the demand signal can resize a thesis
-_CATALYST_CAP = 0.50  # ... bounded to +-50% so it never flips your direction
+_GAIN_DEMAND = 0.35  # how far the demand signal can resize a thesis
+_GAIN_VALUE = 0.35  # how far the valuation signal can resize a thesis
+_CATALYST_CAP = 0.50  # total resize bounded to +-50% so it never flips direction
 
 
 def demand_radar(force: bool = False) -> pd.DataFrame:
@@ -53,29 +55,34 @@ def _spy_hedge(weight: pd.Series, beta: pd.Series) -> float:
     return round(-float((weight * beta).sum()), 3)
 
 
-def _resize(thesis: float, catalyst: float) -> float:
-    """Resize a thesis by the demand catalyst, clamped so the sign never flips."""
-    aligned = catalyst * (1 if thesis > 0 else -1)  # >0 when demand confirms thesis
-    mult = 1 + max(-_CATALYST_CAP, min(_CATALYST_CAP, _CATALYST_GAIN * aligned))
+def _resize(thesis: float, demand: float, value: float) -> float:
+    """Resize a thesis by the demand + valuation catalysts, clamped so the sign
+    never flips. A catalyst that *confirms* the thesis adds; one that contradicts
+    trims. (Cheap confirms a long / expensive confirms a short.)"""
+    sign = 1 if thesis > 0 else -1
+    raw = (_GAIN_DEMAND * demand + _GAIN_VALUE * value) * sign
+    mult = 1 + max(-_CATALYST_CAP, min(_CATALYST_CAP, raw))
     return thesis * mult
 
 
 def positions(force: bool = False) -> pd.DataFrame:
     """The book: thesis-anchored, demand-sized, with betas attached."""
     radar = demand_radar(force=force)
-    catalysts = dict(zip(radar["name"], radar["conviction"], strict=True))
+    demand = dict(zip(radar["name"], radar["conviction"], strict=True))
+    value = cached_scores(force=force)
     b = betas(force=force)
     rows = []
     for name, thesis in config.THESES.items():
         if not thesis:
             continue
-        catalyst = float(catalysts.get(name, 0.0))
+        d, v = float(demand.get(name, 0.0)), float(value.get(name, 0.0))
         rows.append(
             {
                 "name": name,
                 "thesis": thesis,
-                "demand_catalyst": round(catalyst, 2),
-                "sized": round(_resize(thesis, catalyst), 2),
+                "demand": round(d, 2),
+                "value": round(v, 2),
+                "sized": round(_resize(thesis, d, v), 2),
                 "beta": round(b.get(name, 1.0), 2),
             }
         )
@@ -117,18 +124,18 @@ def _print(radar: pd.DataFrame, pos: pd.DataFrame, book: dict) -> None:
             f"  {r['name']:5}{r['subsector']:11}{r['demand_z']:>9.2f}"
             f"{r['trust']:>7.2f}{r['conviction']:>12.2f}"
         )
-    print("\n2) THE BOOK  (your THESES, sized by demand, beta-neutral)")
-    print("=" * 60)
+    print("\n2) THE BOOK  (your THESES, sized by demand + value, beta-neutral)")
+    print("=" * 68)
     if pos.empty:
         print("  No views set. Add your fundamental views in config.THESES.")
         return
-    print(f"  {'name':5}{'thesis':>8}{'demand':>8}{'sized':>8}{'beta':>6}{'weight':>9}")
+    print(f"  {'name':5}{'thesis':>8}{'demand':>8}{'value':>8}{'sized':>8}{'beta':>6}{'weight':>9}")
     for _, r in pos.iterrows():
         print(
-            f"  {r['name']:5}{r['thesis']:>+8.1f}{r['demand_catalyst']:>+8.2f}"
+            f"  {r['name']:5}{r['thesis']:>+8.1f}{r['demand']:>+8.2f}{r['value']:>+8.2f}"
             f"{r['sized']:>+8.2f}{r['beta']:>6.2f}{r['weight']:>+9.1%}"
         )
-    print("-" * 60)
+    print("-" * 68)
     print(
         f"    + SPY hedge {book['spy_hedge_pct']:+.0f}% -> "
         f"net beta {book['net_beta_after_hedge']:+.2f}"
@@ -137,8 +144,8 @@ def _print(radar: pd.DataFrame, pos: pd.DataFrame, book: dict) -> None:
         f"  RISK: gross {book['gross_pct']:.0f}%, net-$ {book['net_dollar_pct']:+.0f}%, "
         f"net-beta {book['net_beta_after_hedge']:+.2f}, max {book['max_position_pct']:.0f}%"
     )
-    print("  Your thesis sets direction; demand only resizes it (never flips). UBER")
-    print("  stays long on your view -- soft demand merely trims it.")
+    print("  Your thesis sets direction; demand + valuation only resize it (never")
+    print("  flip). UBER stays long: soft demand trims, but it's cheap -> value adds.")
 
 
 if __name__ == "__main__":

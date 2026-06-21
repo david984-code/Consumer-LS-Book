@@ -17,7 +17,7 @@ _NAME = "prices"
 def _download(tickers: list[str]) -> pd.DataFrame:
     import yfinance as yf
 
-    raw = yf.download(tickers, period="3y", progress=False, auto_adjust=True)
+    raw = yf.download(tickers, period="5y", progress=False, auto_adjust=True)
     close = raw["Close"][tickers]
     close.index = pd.to_datetime(close.index)
     return close.dropna(how="all")
