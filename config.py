@@ -92,14 +92,15 @@ THESES: dict[str, float] = {
 MAX_NAME = 0.10
 MAX_SUBSECTOR = 0.30
 
-# Hedge: short an EQUAL-WEIGHT index so there's no cap-weight mega-cap distortion
-# (cap-weighted XLY is ~22% Amazon -- shorting it = hugely short Amazon, not a hedge).
-# The niche equal-weight CONSUMER ETFs (RSPD/RSPS) aren't borrowable, so we use RSP
-# (equal-weight S&P 500): ~$70B, reliably shortable, still no mega-cap concentration.
-# Tradeoff vs RSPD/RSPS: hedges market beta broadly, not the consumer sector itself.
-HEDGE_DEFAULT = "RSP"
+# Hedge instrument. The ideal (equal-weight, no mega-cap distortion) wasn't
+# executable: RSPD/RSPS and even RSP all got "not available to borrow" in the sim.
+# Only the mega-ETFs borrow, so we use SPY -- a broad market-beta hedge. SPY is
+# tech-heavy (~30%) but DIFFUSELY so (~7% Amazon), far less lopsided than XLY's ~37%
+# in Amazon+Tesla. Tradeoff: hedges market beta, not the consumer sector. If SPY
+# can't be borrowed either, BUY an inverse ETF (e.g. SH) instead -- no borrow needed.
+HEDGE_DEFAULT = "SPY"
 HEDGE_BY_SUBSECTOR: dict[str, str] = {}
-HEDGE_TICKERS = ("RSP",)
+HEDGE_TICKERS = ("SPY",)
 
 
 def hedge_etf(subsector: str) -> str:
