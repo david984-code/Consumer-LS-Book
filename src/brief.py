@@ -33,9 +33,8 @@ def brief(ticker: str) -> None:
     tk = yf.Ticker(ticker)
     info = tk.info or {}
     print(f"\n{'=' * 72}\n{ticker}  {_ascii(info.get('longName', ''), 50)}")
-    print(
-        f"  {info.get('sector', '?')} / {info.get('industry', '?')}  |  mktcap {_bil(info.get('marketCap'))}"
-    )
+    sector, industry = info.get("sector", "?"), info.get("industry", "?")
+    print(f"  {sector} / {industry}  |  mktcap {_bil(info.get('marketCap'))}")
     summary = info.get("longBusinessSummary", "")
     if summary:
         print(f"  {_ascii(summary, 160)}...")
