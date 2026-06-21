@@ -20,6 +20,15 @@ def test_weights_lean_with_conviction_magnitude():
     assert w["a"] > 0 > w["b"] and abs(w.sum()) < 1e-9
 
 
+def test_spy_hedge_zeroes_net_beta():
+    # Long a high-beta name, short a low-beta one -> net long beta -> hedge < 0.
+    w = pd.Series({"hi": 0.5, "lo": -0.5})
+    b = pd.Series({"hi": 1.6, "lo": 0.8})
+    hedge = book._spy_hedge(w, b)
+    assert hedge < 0  # short SPY to offset the net-long beta
+    assert abs((w * b).sum() + hedge) < 1e-9  # net beta + hedge == 0
+
+
 def test_temperature_zscores_latest_growth():
     idx = pd.date_range("2010-03-31", periods=24, freq="QE")
     seasonal = np.array([1.0, 1.3, 0.8, 1.1])[idx.quarter - 1]

@@ -52,9 +52,11 @@ uv run python -m src.book      # the scorecard + proposed L/S tilt
 
 ## Roadmap
 
-1. ✅ Live scorecard + dollar-neutral L/S tilt from 3 readers (rideshare, airlines, casinos).
-2. ⬜ Wire in the **lodging** signal (the 4th reader) for hotels (MAR/HLT/H).
-3. ⬜ **Beta-neutralize** (long − β·SPY) so the book is market-neutral, not just dollar-neutral.
+1. ✅ Live scorecard + L/S tilt from 3 readers (rideshare, airlines, casinos).
+2. ✅ **Beta-neutralized** — compute each name's β vs SPY, add an SPY hedge so the
+      book's net beta ≈ 0 (it was secretly +0.17, long high-beta airlines → a hidden
+      market bet; a −17% SPY hedge fixes it). Full risk panel (gross / net-$ / net-β / max).
+3. ⬜ Wire in the **lodging** signal (the 4th reader) for hotels (MAR/HLT/H).
 4. ⬜ Per-subsector concentration caps; a macro context panel (informational only).
 5. ⬜ Bootstrap inference on the long-minus-short spread vs a control benchmark.
 

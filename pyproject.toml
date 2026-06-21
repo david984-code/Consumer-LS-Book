@@ -9,6 +9,8 @@ dependencies = [
     "requests>=2.32",
     "tenacity>=8.2",
     "python-dotenv>=1.0",
+    "lxml>=5.0",
+    "yfinance>=0.2",
 ]
 
 [dependency-groups]
