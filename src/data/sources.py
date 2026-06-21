@@ -138,3 +138,21 @@ def macau(force: bool = False) -> pd.Series:
     q = _q_series(pd.Series(data).sort_index())
     cache.save("macau", q.to_frame("ggr"))
     return q
+
+
+def accommodation(force: bool = False) -> pd.Series:
+    """US accommodation-sector employment per quarter (FRED CES7072100001).
+
+    A hotel-specific demand proxy (hotels staff to occupancy). Provisional -- the
+    franchisors' real metric is RevPAR, which the dedicated lodging reader handles.
+    """
+    if not force and cache.is_fresh("accom"):
+        return cache.load("accom")["jobs"]
+    text = _get("https://fred.stlouisfed.org/graph/fredgraph.csv?id=CES7072100001").text
+    df = pd.read_csv(StringIO(text))
+    df.columns = ["date", "jobs"]
+    df["date"] = pd.to_datetime(df["date"])
+    df["jobs"] = pd.to_numeric(df["jobs"], errors="coerce")
+    q = _q_series(df.dropna().set_index("date")["jobs"])
+    cache.save("accom", q.to_frame("jobs"))
+    return q

@@ -39,6 +39,11 @@ UNIVERSE: dict[str, tuple[str, str, float]] = {
     "MLCO": ("casinos", "macau", 0.70),
     "WYNN": ("casinos", "macau", 0.60),
     "MGM": ("casinos", "macau", 0.40),
+    # Hotels -- accommodation employment (PROVISIONAL proxy; the dedicated lodging
+    # reader's RevPAR signal is the validated version to swap in). Modest trust.
+    "MAR": ("hotels", "lodging", 0.45),
+    "HLT": ("hotels", "lodging", 0.45),
+    "H": ("hotels", "lodging", 0.45),
 }
 
 # Each subsector's signal series -> the names whose demand it reads.
@@ -47,4 +52,5 @@ SIGNAL_NAMES: dict[str, list[str]] = {
     "nyc_lyft": ["LYFT"],
     "tsa": ["LUV", "JBLU", "ALK", "DAL", "AAL", "UAL"],
     "macau": ["LVS", "MLCO", "WYNN", "MGM"],
+    "lodging": ["MAR", "HLT", "H"],
 }

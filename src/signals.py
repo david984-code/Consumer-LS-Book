@@ -46,6 +46,7 @@ def current_signals(force: bool = False) -> dict[str, dict]:
         "nyc_lyft": _temperature(nyc["LYFT"]),
         "tsa": _temperature(sources.tsa(force=force)),
         "macau": _temperature(sources.macau(force=force)),
+        "lodging": _temperature(sources.accommodation(force=force)),
     }
     return {k: v for k, v in out.items() if v}
 
