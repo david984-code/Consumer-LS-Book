@@ -64,16 +64,21 @@ def _flow_quarterly(cik: int, concepts: tuple[str, ...], unit: str = "USD") -> p
             end = pd.Timestamp(u["end"])
             days = (end - pd.Timestamp(u["start"])).days
             val = float(u["val"])
-            if 80 <= days <= 100:
+            if 80 <= days <= 100:  # 12-13 week quarter
                 qtr.setdefault(end, val)
-            elif 260 <= days <= 285:
+            elif 250 <= days <= 285:  # 36-39 week 9-month YTD
                 ytd9.setdefault(end, val)
-            elif 350 <= days <= 380:
+            elif 350 <= days <= 380:  # 52-53 week year
                 annual.setdefault(end, val)
-    for end, val in annual.items():
-        sep = pd.Timestamp(end.year, 9, 30)
-        if end.month == 12 and end not in qtr and sep in ytd9:
-            qtr[end] = val - ytd9[sep]
+    # Q4 = annual - 9-month-YTD. Match the 9-month fact ending ~one quarter before
+    # the annual end (by proximity, not a fixed Sept 30 -- robust to 52/53-week
+    # fiscal calendars like KO/PEP whose quarters don't land on calendar-quarter ends).
+    for end_a, val_a in annual.items():
+        if end_a in qtr:
+            continue
+        cand = [e for e in ytd9 if 70 <= (end_a - e).days <= 130]
+        if cand:
+            qtr[end_a] = val_a - ytd9[max(cand)]
     if not qtr:
         return pd.Series(dtype=float)
     return pd.Series(qtr).sort_index().resample("QE").last()

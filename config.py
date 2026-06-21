@@ -44,6 +44,13 @@ UNIVERSE: dict[str, tuple[str, str, float]] = {
     "MAR": ("hotels", "lodging", 0.45),
     "HLT": ("hotels", "lodging", 0.45),
     "H": ("hotels", "lodging", 0.45),
+    # Beverages -- no free demand reader yet, so sized on THESIS + VALUE only
+    # (demand catalyst defaults to 0). trust is unused without a signal.
+    "CELH": ("beverages", "none", 0.0),
+    "MNST": ("beverages", "none", 0.0),
+    "KO": ("beverages", "none", 0.0),
+    "PEP": ("beverages", "none", 0.0),
+    "KDP": ("beverages", "none", 0.0),
 }
 
 # Each subsector's signal series -> the names whose demand it reads.
@@ -91,4 +98,9 @@ CIK: dict[str, int] = {
     "MAR": 1048286,
     "HLT": 1585689,
     "H": 1468174,
+    "CELH": 1341766,
+    "MNST": 865752,
+    "KO": 21344,
+    "PEP": 77476,
+    "KDP": 1418135,
 }
