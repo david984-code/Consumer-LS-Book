@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from src import backtest, book, macro, shorts, signals
+from src import backtest, book, brief, macro, shorts, signals
 
 
 def test_catalysts_never_flip_a_thesis():
@@ -79,6 +79,12 @@ def test_bootstrap_flags_a_clear_edge_and_clears_noise():
     assert edge["significant"] and edge["ci90_ann_pct"][0] > 0
     noise = backtest._bootstrap(pd.Series([0.1, -0.1] * 8), n=500)
     assert not noise["significant"]  # zero-mean -> CI spans 0
+
+
+def test_brief_formatters_handle_missing():
+    assert brief._mult(14.4) == "14.4x" and brief._mult(None) == "n/a"
+    assert brief._pct(0.5) == "+50%" and brief._pct(None) == "n/a"
+    assert brief._bil(1e10) == "$10.0B" and brief._bil(None) == "n/a"
 
 
 def test_short_scanner_flags():
