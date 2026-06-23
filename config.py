@@ -81,8 +81,7 @@ THESES: dict[str, float] = {
     "MNST": 1.0,  # long: energy-drink quality incumbent
     "DASH": 1.0,  # long: delivery
     "NCLH": 1.0,  # long: cruise
-    # "MAR": -1.0,  # short thesis (overvalued) -- DEFERRED: can't short in the
-    # beneficiary paper account (no borrow). Re-add once on a shortable account.
+    "MAR": -1.0,  # short: overvalued, strong uptrend (sized small for momentum risk)
 }
 
 # Concentration caps (fraction of gross). No single name above MAX_NAME, no single
@@ -92,15 +91,13 @@ THESES: dict[str, float] = {
 MAX_NAME = 0.10
 MAX_SUBSECTOR = 0.30
 
-# Hedge instrument. The ideal (equal-weight, no mega-cap distortion) wasn't
-# executable: RSPD/RSPS and even RSP all got "not available to borrow" in the sim.
-# Only the mega-ETFs borrow, so we use SPY -- a broad market-beta hedge. SPY is
-# tech-heavy (~30%) but DIFFUSELY so (~7% Amazon), far less lopsided than XLY's ~37%
-# in Amazon+Tesla. Tradeoff: hedges market beta, not the consumer sector. If SPY
-# can't be borrowed either, BUY an inverse ETF (e.g. SH) instead -- no borrow needed.
-HEDGE_DEFAULT = "SPY"
-HEDGE_BY_SUBSECTOR: dict[str, str] = {}
-HEDGE_TICKERS = ("SPY",)
+# Hedge: short an EQUAL-WEIGHT consumer index per sleeve, so there's no cap-weight
+# mega-cap distortion (cap-weighted XLY is ~22% Amazon). Staples -> RSPS, the rest ->
+# RSPD. On IBKR these are borrowable (the Schwab beneficiary sim couldn't lend them).
+# If IBKR shows either as not-shortable, fall back to RSP (equal-weight S&P) or SPY.
+HEDGE_DEFAULT = "RSPD"
+HEDGE_BY_SUBSECTOR = {"bev-growth": "RSPS", "bev-staples": "RSPS"}
+HEDGE_TICKERS = ("RSPD", "RSPS")
 
 
 def hedge_etf(subsector: str) -> str:
