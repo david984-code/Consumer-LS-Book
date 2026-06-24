@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from src import backtest, book, brief, macro, shorts, signals
+from src import backtest, book, brief, factor, macro, shorts, signals
 
 
 def test_catalysts_never_flip_a_thesis():
@@ -94,6 +94,12 @@ def test_short_scanner_flags():
     assert any("EVENT" in f for f in shorts._flags(0.03, 2.0, 5, {}))  # earnings imminent
     clean = shorts._flags(0.03, 2.0, 60, {"above_200dma": False, "r6": -0.1})
     assert clean == []  # quiet name, no flags
+
+
+def test_factor_beta():
+    x = np.array([1.0, -2.0, 3.0, -1.0, 0.5])
+    assert abs(factor._beta(2 * x, x) - 2.0) < 1e-9  # y = 2x -> beta 2
+    assert abs(factor._beta(np.ones(5), x)) < 1e-9  # constant -> beta 0
 
 
 def test_macro_label_thresholds():
