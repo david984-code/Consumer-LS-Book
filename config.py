@@ -59,6 +59,10 @@ UNIVERSE: dict[str, tuple[str, str, float]] = {
     # Fitness / e-commerce -- consumer discretionary, hedge with RSPD
     "LTH": ("fitness", "none", 0.0),
     "AMZN": ("ecommerce", "none", 0.0),
+    # Tech sleeve -- OUTSIDE consumer; hedged vs equal-weight tech (RSPT). TSM is a
+    # foreign filer (20-F / IFRS) so the value layer can't score it -> thesis-only.
+    "MSFT": ("tech", "none", 0.0),
+    "TSM": ("tech", "none", 0.0),
 }
 
 # Each subsector's signal series -> the names whose demand it reads.
@@ -86,6 +90,8 @@ THESES: dict[str, float] = {
     "NCLH": 1.0,  # long: cruise
     "LTH": 1.0,  # long: Life Time Group (fitness) -- NOTE: at 52w highs, momentum name
     "AMZN": 1.0,  # long: GICS consumer discretionary, fits the book
+    "MSFT": 1.0,  # long: tech (beaten down near 52w lows) -- hedged vs RSPT
+    "TSM": 1.0,  # long: tech/semis (thesis-only, foreign filer) -- hedged vs RSPT
     "MAR": -1.0,  # short: overvalued, strong uptrend (sized small for momentum risk)
 }
 
@@ -101,8 +107,8 @@ MAX_SUBSECTOR = 0.30
 # RSPD. On IBKR these are borrowable (the Schwab beneficiary sim couldn't lend them).
 # If IBKR shows either as not-shortable, fall back to RSP (equal-weight S&P) or SPY.
 HEDGE_DEFAULT = "RSPD"
-HEDGE_BY_SUBSECTOR = {"bev-growth": "RSPS", "bev-staples": "RSPS"}
-HEDGE_TICKERS = ("RSPD", "RSPS")
+HEDGE_BY_SUBSECTOR = {"bev-growth": "RSPS", "bev-staples": "RSPS", "tech": "RSPT"}
+HEDGE_TICKERS = ("RSPD", "RSPS", "RSPT")
 
 
 def hedge_etf(subsector: str) -> str:
@@ -135,4 +141,6 @@ CIK: dict[str, int] = {
     "NCLH": 1513761,
     "LTH": 1869198,
     "AMZN": 1018724,
+    "MSFT": 789019,
+    "TSM": 1046179,  # foreign filer (20-F/IFRS) -- value layer won't resolve it
 }
