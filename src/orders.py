@@ -9,41 +9,51 @@ informational -- it NEVER sends orders. Run before each rebalance for fresh pric
 
 from __future__ import annotations
 
-import config
-
 from .book import _hedge_weight, positions
 from .data.prices import fetch as fetch_prices
 
 
-def order_ticket(gross: float = 100_000.0, force: bool = False) -> None:
+def build_ticket(gross: float = 100_000.0, force: bool = False) -> list[dict]:
+    """The order ticket as data: [{ticker, side BUY/SELL, shares, price}] for every
+    single-name position plus the sector-hedge shorts. Prices are the last close."""
     pos = positions(force=force)
-    print(f"ORDER TICKET  (book gross ${gross:,.0f}; prices = last close)")
-    print("=" * 64)
     if pos.empty:
+        return []
+    px = fetch_prices().iloc[-1]
+
+    def row(ticker: str, w: float) -> dict:
+        price = float(px.get(ticker, float("nan")))
+        shares = int(round(abs(w) * gross / price)) if price == price and price else 0
+        return {
+            "ticker": ticker,
+            "side": "BUY" if w > 0 else "SELL",
+            "shares": shares,
+            "price": round(price, 2) if price == price else None,
+        }
+
+    out = [row(str(r["name"]), float(r["weight"])) for _, r in pos.iterrows()]
+    out += [
+        row(str(etf), _hedge_weight(sleeve["weight"], sleeve["beta"]))
+        for etf, sleeve in pos.groupby("hedge")
+    ]
+    return out
+
+
+def order_ticket(gross: float = 100_000.0, force: bool = False) -> None:
+    ticket = build_ticket(gross, force=force)
+    print(f"ORDER TICKET  (book gross ${gross:,.0f}; prices = last close)")
+    print("=" * 60)
+    if not ticket:
         print("  No theses set in config.THESES.")
         return
-    px = fetch_prices().iloc[-1]
-    print(f"  {'ticker':7}{'side':6}{'weight':>8}{'notional':>12}{'price':>9}{'shares':>9}")
-
-    def line(ticker: str, w: float) -> None:
-        price = float(px.get(ticker, float("nan")))
-        dollars = w * gross
-        shares = int(round(dollars / price)) if price == price and price else 0
-        side = "LONG" if w > 0 else "SHORT"
-        px_str = f"{price:.2f}" if price == price else "n/a"
-        print(f"  {ticker:7}{side:6}{w:>+8.1%}{abs(dollars):>12,.0f}{px_str:>9}{abs(shares):>9,}")
-
-    for _, r in pos.iterrows():
-        line(str(r["name"]), float(r["weight"]))
-    print("  " + "-" * 56)
-    for etf, sleeve in pos.groupby("hedge"):
-        line(str(etf), _hedge_weight(sleeve["weight"], sleeve["beta"]))
-
-    longs = float(pos[pos["weight"] > 0]["weight"].sum()) * gross
-    shorts = float(pos[pos["weight"] < 0]["weight"].abs().sum()) * gross
-    hedge_names = "/".join(config.HEDGE_TICKERS)
-    print(f"\n  single-name: ${longs:,.0f} long / ${shorts:,.0f} short, + the {hedge_names}")
-    print("  hedge short on top. Net beta ~ 0 (market-hedged). paperMoney only.")
+    print(f"  {'ticker':7}{'side':12}{'shares':>9}{'price':>10}{'notional':>13}")
+    for o in ticket:
+        side = "BUY" if o["side"] == "BUY" else "SELL SHORT"
+        price = o["price"]
+        notional = (o["shares"] * price) if price else 0
+        px_str = f"{price:.2f}" if price else "n/a"
+        print(f"  {o['ticker']:7}{side:12}{o['shares']:>9,}{px_str:>10}{notional:>13,.0f}")
+    print("  This is informational -- it never sends orders. paperMoney only.")
 
 
 if __name__ == "__main__":
