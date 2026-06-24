@@ -56,6 +56,9 @@ UNIVERSE: dict[str, tuple[str, str, float]] = {
     # Delivery / cruise -- discretionary, no demand reader (thesis + value only)
     "DASH": ("delivery", "none", 0.0),
     "NCLH": ("cruise", "none", 0.0),
+    # Fitness / e-commerce -- consumer discretionary, hedge with RSPD
+    "LTH": ("fitness", "none", 0.0),
+    "AMZN": ("ecommerce", "none", 0.0),
 }
 
 # Each subsector's signal series -> the names whose demand it reads.
@@ -81,6 +84,8 @@ THESES: dict[str, float] = {
     "MNST": 1.0,  # long: energy-drink quality incumbent
     "DASH": 1.0,  # long: delivery
     "NCLH": 1.0,  # long: cruise
+    "LTH": 1.0,  # long: Life Time Group (fitness) -- NOTE: at 52w highs, momentum name
+    "AMZN": 1.0,  # long: GICS consumer discretionary, fits the book
     "MAR": -1.0,  # short: overvalued, strong uptrend (sized small for momentum risk)
 }
 
@@ -128,4 +133,6 @@ CIK: dict[str, int] = {
     "KDP": 1418135,
     "DASH": 1792789,
     "NCLH": 1513761,
+    "LTH": 1869198,
+    "AMZN": 1018724,
 }
