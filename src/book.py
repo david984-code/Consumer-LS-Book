@@ -3,13 +3,12 @@
 Two clearly separated layers:
   1. DEMAND RADAR -- which subsectors' demand is hot/cold right now (idea
      generation / timing). conviction = demand_temperature x trust.
-  2. THE BOOK -- positions come from YOUR fundamental views (config.THESES). The
-     demand radar only SIZES each view (a confirming signal adds, a contradicting
-     one trims) within a bound, so it NEVER flips your direction. Then we
-     beta-neutralize with an SPY hedge.
+  2. THE BOOK -- positions come from YOUR fundamental views (config.THESES). Demand
+     + value only SIZE each view (never flip it), then a dynamic overlay (volatility
+     scaling, price bands, momentum gates) adjusts weight, caps cap it, and each
+     sleeve is beta-neutralized vs its own equal-weight sector ETF.
 
-The alt-data informs the discretionary book; it does not replace it. A soft
-demand quarter trims a high-conviction long like UBER -- it does not short it.
+The alt-data informs the discretionary book; it does not replace it.
 """
 
 from __future__ import annotations
@@ -22,6 +21,7 @@ import pandas as pd
 import config
 
 from . import macro
+from .data.prices import fetch as fetch_prices
 from .data.prices import hedge_betas
 from .signals import current_signals
 from .valuation import cached_scores
@@ -106,8 +106,55 @@ def _resize(thesis: float, demand: float, value: float) -> float:
     return thesis * mult
 
 
+def _band_mult(price: float, floor: float, ceiling: float) -> float:
+    """Full weight at/below the floor, scaling to 0 at/above the ceiling."""
+    if price >= ceiling:
+        return 0.0
+    if price <= floor:
+        return 1.0
+    return (ceiling - price) / (ceiling - floor)
+
+
+def _momentum_mult(close: pd.Series) -> float:
+    """Small until an uptrend confirms (below 200dma), then scale up by 6m strength."""
+    c = close.dropna()
+    if len(c) < 200:
+        return 1.0
+    last, dma200 = float(c.iloc[-1]), float(c.tail(200).mean())
+    if last < dma200:
+        return 0.30  # no uptrend -> minimal
+    r6 = last / float(c.iloc[-126]) - 1 if len(c) > 126 else 0.0
+    return min(1.0, 0.5 + max(0.0, r6))  # uptrend -> 0.5..1.0 by momentum
+
+
+def _dynamic_mults(names: list[str], force: bool = False) -> tuple[dict[str, float], list[str]]:
+    """Per-name sizing overlay (vol scaling x price band x momentum gate) + alerts."""
+    px = fetch_prices(force=force)
+    rets = px.pct_change()
+    have = [n for n in names if n in px.columns]
+    vol = {n: float(rets[n].tail(63).std()) or 1e-9 for n in have}
+    inv = {n: 1.0 / vol[n] for n in have}
+    mean_inv = sum(inv.values()) / len(inv) if inv else 1.0
+    mults: dict[str, float] = {}
+    alerts: list[str] = []
+    for n in names:
+        vmult = (inv[n] / mean_inv) if (config.VOL_SCALING and n in inv) else 1.0
+        bmult = 1.0
+        if n in config.PRICE_BANDS and n in px.columns:
+            last = float(px[n].dropna().iloc[-1])
+            floor, ceiling = config.PRICE_BANDS[n]
+            bmult = _band_mult(last, floor, ceiling)
+            if last >= ceiling:
+                alerts.append(
+                    f"{n} ${last:.2f} broke the ${ceiling:.0f} ceiling -- zeroed, revisit"
+                )
+        mmult = _momentum_mult(px[n]) if (n in config.MOMENTUM_GATED and n in px.columns) else 1.0
+        mults[n] = round(vmult * bmult * mmult, 2)
+    return mults, alerts
+
+
 def positions(force: bool = False) -> pd.DataFrame:
-    """The book: thesis-anchored, demand-sized, with betas attached."""
+    """The book: thesis-anchored, demand + value + dynamic-sized, betas attached."""
     radar = demand_radar(force=force)
     demand = dict(zip(radar["name"], radar["conviction"], strict=True))
     value = cached_scores(force=force)
@@ -133,6 +180,11 @@ def positions(force: bool = False) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     if df.empty:
         return df
+    # dynamic overlay: vol scaling x price band x momentum gate
+    mults, alerts = _dynamic_mults(list(df["name"]), force=force)
+    df["size_x"] = df["name"].map(lambda n: mults.get(n, 1.0))
+    df["sized"] = (df["sized"] * df["size_x"]).round(2)
+    df.attrs["alerts"] = alerts
     capped = _apply_caps(
         pd.Series(df["sized"].to_numpy(), index=df["name"]),
         pd.Series(df["subsector"].to_numpy(), index=df["name"]),
@@ -164,6 +216,7 @@ def build(force: bool = False) -> dict:
             max_position_pct=round(float(pos["weight"].abs().max()) * 100, 1),
             subsector_exposure={k: round(v * 100, 1) for k, v in sub_exp.items()},
             caps_relaxed=relaxed,
+            alerts=list(pos.attrs.get("alerts", [])),
             positions=dict(zip(pos["name"], pos["weight"], strict=True)),
         )
     _print(radar, pos, book)
@@ -185,21 +238,20 @@ def _print(radar: pd.DataFrame, pos: pd.DataFrame, book: dict) -> None:
             f"  {r['name']:5}{r['subsector']:11}{r['demand_z']:>9.2f}"
             f"{r['trust']:>7.2f}{r['conviction']:>12.2f}"
         )
-    print("\n2) THE BOOK  (your THESES, sized by demand + value, sector-hedged)")
-    print("=" * 74)
+    print("\n2) THE BOOK  (THESES x demand + value x dynamic sizing, sector-hedged)")
+    print("=" * 76)
     if pos.empty:
         print("  No views set. Add your fundamental views in config.THESES.")
         return
-    print(
-        f"  {'name':5}{'thesis':>8}{'demand':>8}{'value':>8}{'sized':>8}"
-        f"{'beta':>6}{'hedge':>7}{'weight':>9}"
-    )
+    print(f"  {'name':5}{'thesis':>8}{'value':>8}{'size x':>8}{'beta':>6}{'hedge':>7}{'weight':>9}")
     for _, r in pos.iterrows():
         print(
-            f"  {r['name']:5}{r['thesis']:>+8.1f}{r['demand']:>+8.2f}{r['value']:>+8.2f}"
-            f"{r['sized']:>+8.2f}{r['beta']:>6.2f}{r['hedge']:>7}{r['weight']:>+9.1%}"
+            f"  {r['name']:5}{r['thesis']:>+8.1f}{r['value']:>+8.2f}{r['size_x']:>8.2f}"
+            f"{r['beta']:>6.2f}{r['hedge']:>7}{r['weight']:>+9.1%}"
         )
-    print("-" * 74)
+    print("-" * 76)
+    for a in book.get("alerts", []):
+        print(f"  ! ALERT: {a}")
     hedge_str = ", ".join(f"{etf} {w:+.0f}%" for etf, w in book["hedges_pct"].items())
     print(f"    + SECTOR HEDGE: {hedge_str}  (each zeroes its sleeve's beta vs that ETF)")
     print(

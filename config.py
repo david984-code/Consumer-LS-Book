@@ -99,8 +99,16 @@ THESES: dict[str, float] = {
 # subsector above MAX_SUBSECTOR -- so the book stays diversified once it has several
 # views. Rule of thumb: name cap ~= 2-3x equal-weight; tighten as coverage grows.
 # (With only one or two theses the caps can't bind and are relaxed -- the book says so.)
-MAX_NAME = 0.10
+MAX_NAME = 0.20
 MAX_SUBSECTOR = 0.30
+
+# Dynamic sizing -- per-name overlays on the conviction weight (see book._dynamic_mults):
+#  * vol scaling: size inversely to recent volatility (low-vol bigger, high-vol smaller)
+#  * price bands: full weight near the floor, scaling to 0 (+ an alert) at the ceiling
+#  * momentum gate: small until an uptrend confirms, then scale up
+VOL_SCALING = True
+PRICE_BANDS: dict[str, tuple[float, float]] = {"UBER": (70.0, 75.0)}
+MOMENTUM_GATED: set[str] = {"CELH", "LTH", "TSM"}
 
 # Hedge: short an EQUAL-WEIGHT consumer index per sleeve, so there's no cap-weight
 # mega-cap distortion (cap-weighted XLY is ~22% Amazon). Staples -> RSPS, the rest ->

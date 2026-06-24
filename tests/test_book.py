@@ -35,6 +35,21 @@ def test_short_thesis_grows_when_demand_cold():
     assert book._resize(thesis=-2.0, demand=+1.0, value=0.0) > -2.0  # hot trims a short
 
 
+def test_price_band_sizing():
+    assert book._band_mult(70.0, 70.0, 75.0) == 1.0  # at floor -> full weight
+    assert book._band_mult(75.0, 70.0, 75.0) == 0.0  # at ceiling -> zero
+    assert book._band_mult(80.0, 70.0, 75.0) == 0.0  # above ceiling -> zero
+    assert abs(book._band_mult(72.5, 70.0, 75.0) - 0.5) < 1e-9  # midpoint -> half
+
+
+def test_momentum_gate():
+    idx = pd.date_range("2024-01-01", periods=210, freq="D")
+    down = pd.Series(range(210, 0, -1), index=idx)  # below its 200dma
+    assert book._momentum_mult(down) == 0.30  # no uptrend -> minimal
+    up = pd.Series(range(1, 211), index=idx)  # above its 200dma, trending
+    assert book._momentum_mult(up) > 0.30  # uptrend -> scaled up
+
+
 def test_caps_limit_a_dominant_name():
     w = pd.Series({"A": 0.8, "B": 0.05, "C": 0.05, "D": -0.05, "E": -0.05})
     sub = pd.Series(
