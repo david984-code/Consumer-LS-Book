@@ -107,8 +107,13 @@ MAX_SUBSECTOR = 0.30
 #  * price bands: full weight near the floor, scaling to 0 (+ an alert) at the ceiling
 #  * momentum gate: small until an uptrend confirms, then scale up
 VOL_SCALING = True
+# Price bands = your explicit value targets (buy toward the floor, trim toward the
+# ceiling). Add a name here when you have a target. The book-wide value signal already
+# does "buy cheap / trim expensive" everywhere; bands are for hard per-name levels.
 PRICE_BANDS: dict[str, tuple[float, float]] = {"UBER": (70.0, 75.0)}
-MOMENTUM_GATED: set[str] = {"CELH", "LTH", "TSM"}
+# Momentum gate = "minimal until an uptrend confirms" -- only for volatile names you
+# want to scale INTO on confirmation (CELH). Don't gate names that are already extended.
+MOMENTUM_GATED: set[str] = {"CELH"}
 
 # Hedge: short an EQUAL-WEIGHT consumer index per sleeve, so there's no cap-weight
 # mega-cap distortion (cap-weighted XLY is ~22% Amazon). Staples -> RSPS, the rest ->
