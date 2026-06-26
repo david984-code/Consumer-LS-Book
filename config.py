@@ -75,25 +75,20 @@ SIGNAL_NAMES: dict[str, list[str]] = {
 }
 
 # ---------------------------------------------------------------------------
-# YOUR FUNDAMENTAL VIEWS -- this is where your own research lives, and it is what
-# ACTUALLY drives the book. Scale: -2 strong short .. 0 no view .. +2 strong long.
-# The demand radar only SIZES these views (trims/adds); it can NEVER flip your
-# direction. A name with no view here is idea-generation only, not a position.
-# The alt-data informs the discretionary book -- it does not replace it.
+# YOUR FUNDAMENTAL VIEWS -- the book's actual positions. Scale: -2 strong short ..
+# 0 no view .. +2 strong long. The demand radar only SIZES these (never flips them).
+#
+# PRIVACY: your real book is kept OUT of the public repo. Put your live positions in
+# `theses_local.py` (gitignored); they override the empty default below. The public
+# repo ships an empty book so your positions never appear on GitHub.
 # ---------------------------------------------------------------------------
-THESES: dict[str, float] = {
-    # Longs you believe in (conviction -2..+2 -- tune these to your real conviction).
-    "UBER": 2.0,  # strong long: undervalued, ~$70 downside floor
-    "CELH": 1.0,  # long: energy-drink growth (verify organic vs Alani Nu)
-    "MNST": 1.0,  # long: energy-drink quality incumbent
-    "DASH": 1.0,  # long: delivery
-    "NCLH": 1.0,  # long: cruise
-    "LTH": 1.0,  # long: Life Time Group (fitness) -- NOTE: at 52w highs, momentum name
-    "AMZN": 1.0,  # long: GICS consumer discretionary, fits the book
-    "MSFT": 1.0,  # long: tech (beaten down near 52w lows) -- hedged vs RSPT
-    "TSM": 1.0,  # long: tech/semis (thesis-only, foreign filer) -- hedged vs RSPT
-    "MAR": -1.0,  # short: overvalued, strong uptrend (sized small for momentum risk)
-}
+THESES: dict[str, float] = {}
+try:
+    from theses_local import THESES as _local_theses
+
+    THESES = _local_theses  # private, gitignored override
+except ImportError:
+    pass
 
 # Concentration caps (fraction of gross). No single name above MAX_NAME, no single
 # subsector above MAX_SUBSECTOR -- so the book stays diversified once it has several

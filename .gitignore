@@ -9,3 +9,4 @@ outputs/
 data/*.csv
 *.parquet
 *.pkl
+theses_local.py
