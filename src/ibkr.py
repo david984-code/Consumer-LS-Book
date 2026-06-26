@@ -13,7 +13,8 @@ First:  pip install ib_async   (the maintained IBKR API client; ib_insync also w
 
     python -m src.ibkr                      # DRY RUN: print orders, send nothing
     python -m src.ibkr --send               # transmit to the PAPER account
-    python -m src.ibkr --send --gross 50000 --port 4002
+    python -m src.ibkr --send --gross 250000  # size the book to $250k gross
+    python -m src.ibkr --cancel             # cancel ALL open orders (paper-guarded)
 """
 
 from __future__ import annotations
@@ -74,8 +75,30 @@ def submit(gross: float = 100_000.0, send: bool = False, port: int = _PAPER_PORT
         ib.disconnect()
 
 
+def cancel_all(port: int = _PAPER_PORT) -> None:
+    """Cancel ALL open orders on the paper account (same paper-only guard)."""
+    ib_cls, _stock, _limit = _api()
+    ib = ib_cls()
+    ib.connect("127.0.0.1", port, clientId=18, timeout=10)
+    try:
+        accounts = list(ib.managedAccounts())
+        if not accounts or not all(a.startswith("DU") for a in accounts):
+            raise SystemExit(
+                f"REFUSING: account(s) {accounts} are not paper "
+                "(paper ids start with 'DU'). Aborting -- nothing cancelled."
+            )
+        ib.reqGlobalCancel()  # cancels every open order on the account
+        ib.sleep(2)
+        print(f"Global cancel sent for all open orders on {accounts}.")
+    finally:
+        ib.disconnect()
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     g = float(a[a.index("--gross") + 1]) if "--gross" in a else 100_000.0
     p = int(a[a.index("--port") + 1]) if "--port" in a else _PAPER_PORT
-    submit(gross=g, send="--send" in a, port=p)
+    if "--cancel" in a:
+        cancel_all(port=p)
+    else:
+        submit(gross=g, send="--send" in a, port=p)
