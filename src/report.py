@@ -97,25 +97,28 @@ def _metrics(hist: pd.DataFrame) -> dict:
     }
 
 
-def _print(nav: float, pos: list[dict], m: dict) -> None:
-    longs = [p for p in pos if p["qty"] > 0]
-    shorts = [p for p in pos if p["qty"] < 0]
+def _format(nav: float, pos: list[dict], m: dict) -> str:
+    longs = sum(1 for p in pos if p["qty"] > 0)
+    shorts = sum(1 for p in pos if p["qty"] < 0)
     net = sum(p["mv"] for p in pos)
-    print(f"CONSUMER L/S BOOK -- DAILY REPORT  ({dt.date.today()})")
-    print("=" * 60)
-    sharpe_s = (
-        m["sharpe"] if m["sharpe"] is not None else f"n/a (need {max(0, 6 - m['days'])}+ more days)"
-    )
-    beta_s = m["spy_beta"] if m["spy_beta"] is not None else "n/a (need ~15+ days)"
-    print(f"  NAV        ${nav:,.0f}   day {m['day_pnl']:+,.0f}   cumulative {m['cum_pct']:+.2f}%")
-    print(f"  net-$ expo {net:+,.0f}  ({net / nav * 100:+.0f}%)  <- target ~0 (neutrality)")
-    print(f"  Sharpe     {sharpe_s}")
-    print(f"  SPY beta   {beta_s}  <- target ~0")
-    print(f"  positions  {len(pos)}  ({len(longs)} long / {len(shorts)} short)")
     top = sorted(pos, key=lambda p: -p["pnl"])
-    print("  best:  " + ", ".join(f"{p['sym']} {p['pnl']:+,.0f}" for p in top[:3]))
-    print("  worst: " + ", ".join(f"{p['sym']} {p['pnl']:+,.0f}" for p in top[-3:]))
-    print("  Benchmark: cash (risk-free). A neutral book should beat T-bills at SPY beta ~0.")
+    days_left = max(0, 6 - m["days"])
+    sharpe_s = m["sharpe"] if m["sharpe"] is not None else f"n/a (need {days_left}+ more days)"
+    beta_s = m["spy_beta"] if m["spy_beta"] is not None else "n/a (need ~15+ days)"
+    return "\n".join(
+        [
+            f"CONSUMER L/S BOOK -- DAILY REPORT  ({dt.date.today()})",
+            "=" * 60,
+            f"  NAV ${nav:,.0f}   day {m['day_pnl']:+,.0f}   cumulative {m['cum_pct']:+.2f}%",
+            f"  net-$ expo {net:+,.0f}  ({net / nav * 100:+.0f}%)  <- target ~0 (neutrality)",
+            f"  Sharpe     {sharpe_s}",
+            f"  SPY beta   {beta_s}  <- target ~0",
+            f"  positions  {len(pos)}  ({longs} long / {shorts} short)",
+            "  best:  " + ", ".join(f"{p['sym']} {p['pnl']:+,.0f}" for p in top[:3]),
+            "  worst: " + ", ".join(f"{p['sym']} {p['pnl']:+,.0f}" for p in top[-3:]),
+            "  Benchmark: cash (risk-free); a neutral book should beat T-bills at SPY beta ~0.",
+        ]
+    )
 
 
 def report() -> dict:
@@ -126,7 +129,11 @@ def report() -> dict:
         ib.disconnect()
     hist = _log_nav(dt.date.today(), nav)
     m = _metrics(hist)
-    _print(nav, pos, m)
+    text = _format(nav, pos, m)
+    print(text)
+    rdir = config.OUTPUT_DIR / "reports"
+    rdir.mkdir(exist_ok=True)
+    (rdir / f"{dt.date.today()}.txt").write_text(text, encoding="utf-8")
     return {"nav": nav, **m}
 
 
