@@ -14,6 +14,7 @@ First:  pip install ib_async   (the maintained IBKR API client; ib_insync also w
     python -m src.ibkr                      # DRY RUN: print orders, send nothing
     python -m src.ibkr --send               # transmit to the PAPER account
     python -m src.ibkr --send --gross 250000  # size the book to $250k gross
+    python -m src.ibkr --send --gross 250000 --only XLK  # place just ONE leg
     python -m src.ibkr --cancel             # cancel ALL open orders (paper-guarded)
 """
 
@@ -60,7 +61,9 @@ def _place_ticket(ib, stock_cls, limit_cls, ticket: list, send: bool) -> None:
             ib.placeOrder(contract, limit_cls(o["side"], o["shares"], limit, tif="GTC"))
 
 
-def submit(gross: float = 100_000.0, send: bool = False, port: int = _PAPER_PORT) -> None:
+def submit(
+    gross: float = 100_000.0, send: bool = False, port: int = _PAPER_PORT, only: str | None = None
+) -> None:
     ib_cls, stock_cls, limit_cls = _api()
     ib = ib_cls()
     ib.connect("127.0.0.1", port, clientId=17, timeout=10)
@@ -68,8 +71,10 @@ def submit(gross: float = 100_000.0, send: bool = False, port: int = _PAPER_PORT
         accounts = list(ib.managedAccounts())
         _guard_paper(accounts, refusal="REFUSING TO TRADE", action="sent")
         ticket = [o for o in build_ticket(gross) if o["price"] and o["shares"]]
+        if only:  # place just one leg (e.g. a single hedge), not the whole book
+            ticket = [o for o in ticket if o["ticker"] == only.upper()]
         if not ticket:
-            print("No theses set in config.THESES -- nothing to do.")
+            print(f"Nothing to place{f' for {only.upper()}' if only else ''}.")
             return
         header = f"SENDING to PAPER {accounts}" if send else "DRY RUN -- nothing will be sent"
         print(f"{header}\n{'=' * 60}")
@@ -103,7 +108,8 @@ if __name__ == "__main__":
     a = sys.argv[1:]
     g = float(a[a.index("--gross") + 1]) if "--gross" in a else 100_000.0
     p = int(a[a.index("--port") + 1]) if "--port" in a else _PAPER_PORT
+    one = a[a.index("--only") + 1] if "--only" in a else None
     if "--cancel" in a:
         cancel_all(port=p)
     else:
-        submit(gross=g, send="--send" in a, port=p)
+        submit(gross=g, send="--send" in a, port=p, only=one)
