@@ -115,8 +115,9 @@ MOMENTUM_GATED: set[str] = {"CELH"}
 # RSPD. On IBKR these are borrowable (the Schwab beneficiary sim couldn't lend them).
 # If IBKR shows either as not-shortable, fall back to RSP (equal-weight S&P) or SPY.
 HEDGE_DEFAULT = "RSPD"
-HEDGE_BY_SUBSECTOR = {"bev-growth": "RSPS", "bev-staples": "RSPS", "tech": "RSPT"}
-HEDGE_TICKERS = ("RSPD", "RSPS", "RSPT")
+# tech -> XLK (equal-weight RSPT wasn't borrowable; XLK is liquid + always shortable).
+HEDGE_BY_SUBSECTOR = {"bev-growth": "RSPS", "bev-staples": "RSPS", "tech": "XLK"}
+HEDGE_TICKERS = ("RSPD", "RSPS", "XLK")
 
 
 def hedge_etf(subsector: str) -> str:

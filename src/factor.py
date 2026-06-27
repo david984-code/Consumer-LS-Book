@@ -38,6 +38,30 @@ def _beta(y: np.ndarray, x: np.ndarray) -> float:
     return float(((y - y.mean()) * xc).sum() / denom) if denom else 0.0
 
 
+def _residual_factor_betas(book: np.ndarray, spy: np.ndarray, df: pd.DataFrame) -> dict[str, float]:
+    """Raw market beta, then NEUTRALIZE market and measure the residual exposures
+    (avoids the SPY/IWM/oil collinearity that makes a joint regression unstable)."""
+    mbeta = _beta(book, spy)
+    resid = book - mbeta * spy
+    factor_beta = {"SPY": round(mbeta, 2)}
+    for f in ("USO", "TLT", "IWM"):
+        factor_beta[f] = round(_beta(resid, df[f].to_numpy()), 2)
+    return factor_beta
+
+
+def _oil_contrib(pos: pd.DataFrame, spy: np.ndarray, df: pd.DataFrame) -> dict[str, float]:
+    """Each name's market-neutral oil beta x its weight."""
+    oil = df["USO"].to_numpy()
+    contrib = {}
+    for _, r in pos.iterrows():
+        n = str(r["name"])
+        if n in df.columns:
+            nm = df[n].to_numpy()
+            nr = nm - _beta(nm, spy) * spy
+            contrib[n] = round(_beta(nr, oil) * float(r["weight"]), 3)
+    return contrib
+
+
 def exposures(force: bool = False) -> dict:
     import yfinance as yf
 
@@ -51,25 +75,10 @@ def exposures(force: bool = False) -> dict:
     df = pd.concat([bret, fac.pct_change()], axis=1).dropna()
     book = np.asarray(sum(df[k] * w[k] for k in w if k in df.columns))
     spy = df["SPY"].to_numpy()
-
-    # Raw market beta, then NEUTRALIZE market and measure the residual exposures
-    # (avoids the SPY/IWM/oil collinearity that makes a joint regression unstable).
-    mbeta = _beta(book, spy)
-    resid = book - mbeta * spy
-    factor_beta = {"SPY": round(mbeta, 2)}
-    for f in ("USO", "TLT", "IWM"):
-        factor_beta[f] = round(_beta(resid, df[f].to_numpy()), 2)
-
-    # per-name oil contribution: each name's market-neutral oil beta x its weight
-    oil = df["USO"].to_numpy()
-    oil_contrib = {}
-    for _, r in pos.iterrows():
-        n = str(r["name"])
-        if n in df.columns:
-            nm = df[n].to_numpy()
-            nr = nm - _beta(nm, spy) * spy
-            oil_contrib[n] = round(_beta(nr, oil) * float(r["weight"]), 3)
-    return {"factor_beta": factor_beta, "oil_contrib": oil_contrib}
+    return {
+        "factor_beta": _residual_factor_betas(book, spy, df),
+        "oil_contrib": _oil_contrib(pos, spy, df),
+    }
 
 
 def print_report(force: bool = False) -> None:

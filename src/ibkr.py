@@ -38,33 +38,42 @@ def _api() -> tuple:
     return api.IB, api.Stock, api.LimitOrder
 
 
+def _guard_paper(accounts: list, *, refusal: str, action: str) -> None:
+    """HARD GUARD: paper accounts start with 'DU'. Anything else -> abort, no orders."""
+    if not accounts or not all(a.startswith("DU") for a in accounts):
+        raise SystemExit(
+            f"{refusal}: account(s) {accounts} are not paper "
+            f"(paper ids start with 'DU'). Aborting -- nothing {action}."
+        )
+
+
+def _place_ticket(ib, stock_cls, limit_cls, ticket: list, send: bool) -> None:
+    """Print each order, and (when send) transmit it as a buffered GTC limit."""
+    for o in ticket:
+        limit = round(
+            o["price"] * (1 + _BUFFER) if o["side"] == "BUY" else o["price"] * (1 - _BUFFER), 2
+        )
+        print(f"  {o['side']:4} {o['shares']:>6,} {o['ticker']:6} LMT {limit:>9} GTC")
+        if send:
+            contract = stock_cls(o["ticker"], "SMART", "USD")
+            ib.qualifyContracts(contract)
+            ib.placeOrder(contract, limit_cls(o["side"], o["shares"], limit, tif="GTC"))
+
+
 def submit(gross: float = 100_000.0, send: bool = False, port: int = _PAPER_PORT) -> None:
     ib_cls, stock_cls, limit_cls = _api()
     ib = ib_cls()
     ib.connect("127.0.0.1", port, clientId=17, timeout=10)
     try:
         accounts = list(ib.managedAccounts())
-        # HARD GUARD: paper accounts start with "DU". Anything else -> abort, no orders.
-        if not accounts or not all(a.startswith("DU") for a in accounts):
-            raise SystemExit(
-                f"REFUSING TO TRADE: account(s) {accounts} are not paper "
-                "(paper ids start with 'DU'). Aborting -- nothing sent."
-            )
+        _guard_paper(accounts, refusal="REFUSING TO TRADE", action="sent")
         ticket = [o for o in build_ticket(gross) if o["price"] and o["shares"]]
         if not ticket:
             print("No theses set in config.THESES -- nothing to do.")
             return
         header = f"SENDING to PAPER {accounts}" if send else "DRY RUN -- nothing will be sent"
         print(f"{header}\n{'=' * 60}")
-        for o in ticket:
-            limit = round(
-                o["price"] * (1 + _BUFFER) if o["side"] == "BUY" else o["price"] * (1 - _BUFFER), 2
-            )
-            print(f"  {o['side']:4} {o['shares']:>6,} {o['ticker']:6} LMT {limit:>9} GTC")
-            if send:
-                contract = stock_cls(o["ticker"], "SMART", "USD")
-                ib.qualifyContracts(contract)
-                ib.placeOrder(contract, limit_cls(o["side"], o["shares"], limit, tif="GTC"))
+        _place_ticket(ib, stock_cls, limit_cls, ticket, send)
         print("-" * 60)
         if send:
             ib.sleep(2)
@@ -82,11 +91,7 @@ def cancel_all(port: int = _PAPER_PORT) -> None:
     ib.connect("127.0.0.1", port, clientId=18, timeout=10)
     try:
         accounts = list(ib.managedAccounts())
-        if not accounts or not all(a.startswith("DU") for a in accounts):
-            raise SystemExit(
-                f"REFUSING: account(s) {accounts} are not paper "
-                "(paper ids start with 'DU'). Aborting -- nothing cancelled."
-            )
+        _guard_paper(accounts, refusal="REFUSING", action="cancelled")
         ib.reqGlobalCancel()  # cancels every open order on the account
         ib.sleep(2)
         print(f"Global cancel sent for all open orders on {accounts}.")

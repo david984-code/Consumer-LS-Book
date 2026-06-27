@@ -27,11 +27,7 @@ def _bil(x: object) -> str:
     return f"${float(x) / 1e9:.1f}B" if isinstance(x, (int, float)) else "n/a"
 
 
-def brief(ticker: str) -> None:
-    import yfinance as yf
-
-    tk = yf.Ticker(ticker)
-    info = tk.info or {}
+def _identity(ticker: str, info: dict) -> None:
     print(f"\n{'=' * 72}\n{ticker}  {_ascii(info.get('longName', ''), 50)}")
     sector, industry = info.get("sector", "?"), info.get("industry", "?")
     print(f"  {sector} / {industry}  |  mktcap {_bil(info.get('marketCap'))}")
@@ -39,12 +35,17 @@ def brief(ticker: str) -> None:
     if summary:
         print(f"  {_ascii(summary, 160)}...")
 
+
+def _valuation(info: dict) -> None:
     print("\n  VALUATION")
     print(
         f"    P/E (fwd)   {_mult(info.get('forwardPE')):>8}   "
         f"EV/EBITDA {_mult(info.get('enterpriseToEbitda')):>8}   "
         f"P/S {_mult(info.get('priceToSalesTrailing12Months')):>8}"
     )
+
+
+def _quality_growth(info: dict) -> None:
     print("\n  QUALITY / GROWTH")
     print(
         f"    gross mgn {_pct(info.get('grossMargins')):>7}   "
@@ -57,7 +58,8 @@ def brief(ticker: str) -> None:
         f"net debt {_bil((info.get('totalDebt') or 0) - (info.get('totalCash') or 0))}"
     )
 
-    # momentum + where price sits in its 52w range
+
+def _momentum(tk, info: dict) -> None:
     try:
         c = tk.history(period="1y")["Close"].dropna()
         last = float(c.iloc[-1])
@@ -73,12 +75,13 @@ def brief(ticker: str) -> None:
     except Exception:  # noqa: BLE001
         pass
 
+
+def _short_and_earnings(tk, info: dict) -> None:
     sp = info.get("shortPercentOfFloat")
     print(
         f"\n  SHORT INTEREST  {_pct(sp) if sp is not None else 'n/a'} of float   "
         f"days-to-cover {info.get('shortRatio', 'n/a')}"
     )
-
     try:
         cal = tk.calendar
         ed = cal.get("Earnings Date") if isinstance(cal, dict) else None
@@ -87,6 +90,8 @@ def brief(ticker: str) -> None:
     except Exception:  # noqa: BLE001
         pass
 
+
+def _headlines(tk) -> None:
     try:
         heads = [n.get("title") or n.get("content", {}).get("title", "") for n in (tk.news or [])]
         if any(heads):
@@ -95,6 +100,19 @@ def brief(ticker: str) -> None:
                 print(f"    - {_ascii(h, 80)}")
     except Exception:  # noqa: BLE001
         pass
+
+
+def brief(ticker: str) -> None:
+    import yfinance as yf
+
+    tk = yf.Ticker(ticker)
+    info = tk.info or {}
+    _identity(ticker, info)
+    _valuation(info)
+    _quality_growth(info)
+    _momentum(tk, info)
+    _short_and_earnings(tk, info)
+    _headlines(tk)
 
 
 if __name__ == "__main__":

@@ -57,6 +57,26 @@ def _hedge_weight(weight: pd.Series, beta: pd.Series) -> float:
     return round(-float((weight * beta).sum()), 3)
 
 
+def _waterfill(a: np.ndarray, sub: np.ndarray, name_cap: float, sub_cap: float) -> np.ndarray:
+    """Iterate subsector + name caps, redistributing freed weight to names with room."""
+    subs = list(dict.fromkeys(sub))
+    for _ in range(2000):
+        for s in subs:
+            m = sub == s
+            ss = a[m].sum()
+            if ss > sub_cap + 1e-12:
+                a[m] *= sub_cap / ss
+        a = np.minimum(a, name_cap)
+        deficit = 1.0 - a.sum()
+        if deficit <= 1e-9:
+            break
+        room = np.maximum(name_cap - a, 0.0)
+        if room.sum() <= 1e-9:
+            break  # fully capped given the names available
+        a = a + deficit * room / room.sum()
+    return a
+
+
 def _apply_caps(
     weight: pd.Series, subsector: pd.Series, name_cap: float, sub_cap: float
 ) -> pd.Series:
@@ -75,21 +95,7 @@ def _apply_caps(
     # without flattening conviction -- so relax entirely and keep conviction weights.
     if name_cap * len(a) < 1.0 - 1e-9:
         return pd.Series(a * sign, index=weight.index).round(3)
-    subs = list(dict.fromkeys(sub))
-    for _ in range(2000):
-        for s in subs:
-            m = sub == s
-            ss = a[m].sum()
-            if ss > sub_cap + 1e-12:
-                a[m] *= sub_cap / ss
-        a = np.minimum(a, name_cap)
-        deficit = 1.0 - a.sum()
-        if deficit <= 1e-9:
-            break
-        room = np.maximum(name_cap - a, 0.0)
-        if room.sum() <= 1e-9:
-            break  # fully capped given the names available
-        a = a + deficit * room / room.sum()
+    a = _waterfill(a, sub, name_cap, sub_cap)
     g = a.sum()
     if g > 1e-9:
         a = a / g  # rescale to full gross (relaxes caps only if they can't bind)
@@ -153,34 +159,24 @@ def _dynamic_mults(names: list[str], force: bool = False) -> tuple[dict[str, flo
     return mults, alerts
 
 
-def positions(force: bool = False) -> pd.DataFrame:
-    """The book: thesis-anchored, demand + value + dynamic-sized, betas attached."""
-    radar = demand_radar(force=force)
-    demand = dict(zip(radar["name"], radar["conviction"], strict=True))
-    value = cached_scores(force=force)
-    b = hedge_betas(force=force)
-    rows = []
-    for name, thesis in config.THESES.items():
-        if not thesis:
-            continue
-        d, v = float(demand.get(name, 0.0)), float(value.get(name, 0.0))
-        subsector = config.UNIVERSE[name][0]
-        rows.append(
-            {
-                "name": name,
-                "thesis": thesis,
-                "demand": round(d, 2),
-                "value": round(v, 2),
-                "sized": round(_resize(thesis, d, v), 2),
-                "beta": round(b.get(name, 1.0), 2),
-                "subsector": subsector,
-                "hedge": config.hedge_etf(subsector),
-            }
-        )
-    df = pd.DataFrame(rows)
-    if df.empty:
-        return df
-    # dynamic overlay: vol scaling x price band x momentum gate
+def _position_row(name: str, thesis: float, demand: dict, value: dict, b: dict) -> dict:
+    """Assemble one un-overlaid position row from thesis + demand + value + beta."""
+    d, v = float(demand.get(name, 0.0)), float(value.get(name, 0.0))
+    subsector = config.UNIVERSE[name][0]
+    return {
+        "name": name,
+        "thesis": thesis,
+        "demand": round(d, 2),
+        "value": round(v, 2),
+        "sized": round(_resize(thesis, d, v), 2),
+        "beta": round(b.get(name, 1.0), 2),
+        "subsector": subsector,
+        "hedge": config.hedge_etf(subsector),
+    }
+
+
+def _apply_overlay_and_caps(df: pd.DataFrame, force: bool) -> pd.DataFrame:
+    """Apply the dynamic overlay (vol x band x momentum) then the gross/name caps."""
     mults, alerts = _dynamic_mults(list(df["name"]), force=force)
     df["size_x"] = df["name"].map(lambda n: mults.get(n, 1.0))
     df["sized"] = (df["sized"] * df["size_x"]).round(2)
@@ -195,30 +191,53 @@ def positions(force: bool = False) -> pd.DataFrame:
     return df.sort_values("weight", ascending=False).reset_index(drop=True)
 
 
+def positions(force: bool = False) -> pd.DataFrame:
+    """The book: thesis-anchored, demand + value + dynamic-sized, betas attached."""
+    radar = demand_radar(force=force)
+    demand = dict(zip(radar["name"], radar["conviction"], strict=True))
+    value = cached_scores(force=force)
+    b = hedge_betas(force=force)
+    rows = [
+        _position_row(name, thesis, demand, value, b)
+        for name, thesis in config.THESES.items()
+        if thesis
+    ]
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+    return _apply_overlay_and_caps(df, force)
+
+
+def _book_metrics(pos: pd.DataFrame) -> dict:
+    """Risk/exposure summary for a non-empty positions frame."""
+    # hedge each sleeve against its own equal-weight ETF (RSPD/RSPS)
+    hedges = {
+        str(etf): round(_hedge_weight(sleeve["weight"], sleeve["beta"]) * 100, 1)
+        for etf, sleeve in pos.groupby("hedge")
+    }
+    sub_exp = pos.groupby("subsector")["weight"].apply(lambda s: float(s.abs().sum()))
+    relaxed = bool(
+        pos["weight"].abs().max() > config.MAX_NAME + 1e-3
+        or sub_exp.max() > config.MAX_SUBSECTOR + 1e-3
+    )
+    return {
+        "gross_pct": round(float(pos["weight"].abs().sum()) * 100, 0),
+        "net_dollar_pct": round(float(pos["weight"].sum()) * 100, 1),
+        "hedges_pct": hedges,  # {etf: short weight % that zeroes that sleeve's beta}
+        "max_position_pct": round(float(pos["weight"].abs().max()) * 100, 1),
+        "subsector_exposure": {k: round(v * 100, 1) for k, v in sub_exp.items()},
+        "caps_relaxed": relaxed,
+        "alerts": list(pos.attrs.get("alerts", [])),
+        "positions": dict(zip(pos["name"], pos["weight"], strict=True)),
+    }
+
+
 def build(force: bool = False) -> dict:
     radar = demand_radar(force=force)
     pos = positions(force=force)
     book: dict = {"as_of": radar["as_of"].max()}
     if not pos.empty:
-        # hedge each sleeve against its own equal-weight ETF (RSPD/RSPS)
-        hedges = {}
-        for etf, sleeve in pos.groupby("hedge"):
-            hedges[str(etf)] = round(_hedge_weight(sleeve["weight"], sleeve["beta"]) * 100, 1)
-        sub_exp = pos.groupby("subsector")["weight"].apply(lambda s: float(s.abs().sum()))
-        relaxed = bool(
-            pos["weight"].abs().max() > config.MAX_NAME + 1e-3
-            or sub_exp.max() > config.MAX_SUBSECTOR + 1e-3
-        )
-        book.update(
-            gross_pct=round(float(pos["weight"].abs().sum()) * 100, 0),
-            net_dollar_pct=round(float(pos["weight"].sum()) * 100, 1),
-            hedges_pct=hedges,  # {etf: short weight % that zeroes that sleeve's beta}
-            max_position_pct=round(float(pos["weight"].abs().max()) * 100, 1),
-            subsector_exposure={k: round(v * 100, 1) for k, v in sub_exp.items()},
-            caps_relaxed=relaxed,
-            alerts=list(pos.attrs.get("alerts", [])),
-            positions=dict(zip(pos["name"], pos["weight"], strict=True)),
-        )
+        book.update(_book_metrics(pos))
     _print(radar, pos, book)
     try:
         macro.print_panel()  # informational only -- never feeds back into sizing
@@ -229,8 +248,8 @@ def build(force: bool = False) -> dict:
     return book
 
 
-def _print(radar: pd.DataFrame, pos: pd.DataFrame, book: dict) -> None:
-    print(f"1) DEMAND RADAR  (idea generation, as of {book['as_of']})")
+def _print_radar(radar: pd.DataFrame, as_of: object) -> None:
+    print(f"1) DEMAND RADAR  (idea generation, as of {as_of})")
     print("=" * 60)
     print(f"  {'name':5}{'subsector':11}{'demand z':>9}{'trust':>7}{'conviction':>12}")
     for _, r in radar.iterrows():
@@ -238,18 +257,18 @@ def _print(radar: pd.DataFrame, pos: pd.DataFrame, book: dict) -> None:
             f"  {r['name']:5}{r['subsector']:11}{r['demand_z']:>9.2f}"
             f"{r['trust']:>7.2f}{r['conviction']:>12.2f}"
         )
-    print("\n2) THE BOOK  (THESES x demand + value x dynamic sizing, sector-hedged)")
-    print("=" * 76)
-    if pos.empty:
-        print("  No views set. Add your fundamental views in config.THESES.")
-        return
+
+
+def _print_positions(pos: pd.DataFrame) -> None:
     print(f"  {'name':5}{'thesis':>8}{'value':>8}{'size x':>8}{'beta':>6}{'hedge':>7}{'weight':>9}")
     for _, r in pos.iterrows():
         print(
             f"  {r['name']:5}{r['thesis']:>+8.1f}{r['value']:>+8.2f}{r['size_x']:>8.2f}"
             f"{r['beta']:>6.2f}{r['hedge']:>7}{r['weight']:>+9.1%}"
         )
-    print("-" * 76)
+
+
+def _print_risk(book: dict) -> None:
     for a in book.get("alerts", []):
         print(f"  ! ALERT: {a}")
     hedge_str = ", ".join(f"{etf} {w:+.0f}%" for etf, w in book["hedges_pct"].items())
@@ -264,6 +283,18 @@ def _print(radar: pd.DataFrame, pos: pd.DataFrame, book: dict) -> None:
         print("  * caps relaxed -- too few views to diversify; add more theses to bind them.")
     print("  Longs you believe in, each hedged vs the EQUAL-WEIGHT consumer sector")
     print("  (no Amazon distortion). The bet: your picks beat the average consumer name.")
+
+
+def _print(radar: pd.DataFrame, pos: pd.DataFrame, book: dict) -> None:
+    _print_radar(radar, book["as_of"])
+    print("\n2) THE BOOK  (THESES x demand + value x dynamic sizing, sector-hedged)")
+    print("=" * 76)
+    if pos.empty:
+        print("  No views set. Add your fundamental views in config.THESES.")
+        return
+    _print_positions(pos)
+    print("-" * 76)
+    _print_risk(book)
 
 
 if __name__ == "__main__":
